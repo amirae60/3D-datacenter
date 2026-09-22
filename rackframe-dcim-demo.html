@@ -1,0 +1,2667 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RACKFRAME — DCIM Dashboard Sample</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    /* light defaults */
+    --bg: #F2F5F7;
+    --bg-grid: rgba(16,24,32,0.045);
+    --surface: #FFFFFF;
+    --surface-2: #EEF2F5;
+    --surface-3: #E3E9ED;
+    --border: #D8E0E5;
+    --border-strong: #C0CBD2;
+    --text: #131B22;
+    --text-dim: #55636E;
+    --text-faint: #8996A1;
+    --accent: #2E6DA4;
+    --accent-soft: rgba(46,109,164,0.12);
+    --accent-contrast: #FFFFFF;
+    --type-server: #2E6DA4;
+    --type-network: #2E8E7E;
+    --type-storage: #7A5FBF;
+    --type-pdu: #B8791E;
+    --type-patch: #6B7885;
+    --status-ok: #2F8F5B;
+    --status-warn: #B8791E;
+    --status-crit: #C23B34;
+    --status-offline: #6B7885;
+    --focus-ring: #2E6DA4;
+    --shadow: 0 1px 2px rgba(20,30,38,0.06), 0 6px 16px rgba(20,30,38,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D1117;
+      --bg-grid: rgba(255,255,255,0.035);
+      --surface: #141B23;
+      --surface-2: #19222B;
+      --surface-3: #202B36;
+      --border: #263240;
+      --border-strong: #34424F;
+      --text: #EDF1F5;
+      --text-dim: #97A4B0;
+      --text-faint: #5C6B78;
+      --accent: #6AAEE8;
+      --accent-soft: rgba(106,174,232,0.14);
+      --accent-contrast: #071119;
+      --type-server: #6AAEE8;
+      --type-network: #4FBFAD;
+      --type-storage: #A996E8;
+      --type-pdu: #E8A64B;
+      --type-patch: #8B99A6;
+      --status-ok: #4CAF7D;
+      --status-warn: #E8A64B;
+      --status-crit: #E2564F;
+      --status-offline: #7C8B99;
+      --focus-ring: #7EC1FF;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D1117;
+    --bg-grid: rgba(255,255,255,0.035);
+    --surface: #141B23;
+    --surface-2: #19222B;
+    --surface-3: #202B36;
+    --border: #263240;
+    --border-strong: #34424F;
+    --text: #EDF1F5;
+    --text-dim: #97A4B0;
+    --text-faint: #5C6B78;
+    --accent: #6AAEE8;
+    --accent-soft: rgba(106,174,232,0.14);
+    --accent-contrast: #071119;
+    --type-server: #6AAEE8;
+    --type-network: #4FBFAD;
+    --type-storage: #A996E8;
+    --type-pdu: #E8A64B;
+    --type-patch: #8B99A6;
+    --status-ok: #4CAF7D;
+    --status-warn: #E8A64B;
+    --status-crit: #E2564F;
+    --status-offline: #7C8B99;
+    --focus-ring: #7EC1FF;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    background-image:
+      linear-gradient(var(--bg-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--text);
+    font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono, .num {
+    font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  button, input, select { font-family: inherit; }
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  /* ---------- App shell ---------- */
+  #app {
+    height: 100%;
+    display: grid;
+    grid-template-columns: 250px 1fr;
+  }
+  .sidebar {
+    background: var(--surface);
+    border-inline-start: 1px solid var(--border);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    overflow-y: auto;
+  }
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand .mark {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    direction: ltr;
+    unicode-bidi: isolate;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .brand .mark .dot {
+    width: 9px; height: 9px; border-radius: 2px;
+    background: var(--status-ok);
+    flex: none;
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .brand .sub { font-size: 12.5px; color: var(--text-faint); padding-inline-start: 17px; }
+
+  nav.tabs { display: flex; flex-direction: column; gap: 3px; }
+  nav.tabs button {
+    all: unset;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-size: 14.5px;
+    font-weight: 500;
+  }
+  nav.tabs button .sq { width: 8px; height: 8px; border-radius: 2px; flex: none; background: var(--text-faint); }
+  nav.tabs button:hover { background: var(--surface-2); color: var(--text); }
+  nav.tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
+  nav.tabs button[aria-selected="true"] .sq { background: var(--accent); }
+
+  .sidebar-foot {
+    margin-top: auto;
+    display: flex; flex-direction: column; gap: 8px;
+    padding-top: 14px; border-top: 1px solid var(--border);
+  }
+  .ghost-btn {
+    all: unset; cursor: pointer;
+    text-align: center;
+    font-size: 13px; font-weight: 500;
+    padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+  }
+  .ghost-btn:hover { color: var(--text); border-color: var(--text-faint); }
+
+  .main {
+    min-width: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .topbar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--border);
+  }
+  .menu-btn { display: none; }
+  .topbar h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  .topbar .facility { color: var(--text-faint); font-size: 13px; margin-inline-start: -6px; }
+  .topbar .spacer { flex: 1; }
+  .clock { font-size: 12.5px; color: var(--text-faint); }
+
+  .view { padding: 20px 22px 60px; display: none; flex-direction: column; gap: 22px; }
+  .view.active { display: flex; }
+
+  h2.section-title { font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--text-dim); margin: 0 0 12px; font-weight: 600; }
+
+  /* ---------- KPI cards ---------- */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .kpi-card .label { font-size: 12.5px; color: var(--text-faint); }
+  .kpi-card .value { font-size: 26px; font-weight: 600; }
+  .kpi-card .value small { font-size: 13px; color: var(--text-faint); font-weight: 500; }
+  .bar { height: 6px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 4px; }
+  .lvl-ok { background: var(--status-ok); }
+  .lvl-warn { background: var(--status-warn); }
+  .lvl-crit { background: var(--status-crit); }
+  .txt-ok { color: var(--status-ok); }
+  .txt-warn { color: var(--status-warn); }
+  .txt-crit { color: var(--status-crit); }
+
+  .grid-2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+
+  .rack-util-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); font-size: 13.5px; }
+  .rack-util-row:last-child { border-bottom: none; }
+  .rack-util-row .name { width: 92px; flex: none; font-weight: 500; }
+  .rack-util-row .bar { flex: 1; }
+  .rack-util-row .pct { width: 44px; flex: none; text-align: end; color: var(--text-dim); }
+
+  .tile-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--text-faint); margin: -4px 0 12px; }
+  .tile-legend .it { display: flex; align-items: center; gap: 6px; }
+  .tile-legend .sw { width: 8px; height: 8px; border-radius: 2px; }
+  .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .site-tile {
+    all: unset; cursor: pointer; position: relative;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 13px 14px; border-radius: 10px;
+    background: var(--tile-bg); border: 1px solid var(--tile-border);
+    border-inline-start: 4px solid var(--tile-accent);
+    transition: transform .12s ease;
+  }
+  .site-tile:hover { transform: translateY(-2px); }
+  .site-tile:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .site-tile .tile-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .site-tile .tile-pct { font-size: 22px; font-weight: 700; }
+  .site-tile .tile-flag { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--tile-accent); }
+  .site-tile .tile-name { font-size: 13px; font-weight: 600; }
+  .site-tile .tile-room { font-size: 11px; color: var(--text-faint); }
+  .site-tile .tile-sub { font-size: 11px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; direction: ltr; text-align: right; unicode-bidi: isolate; }
+  .site-tile .tile-alert { font-size: 10.5px; color: var(--status-crit); font-weight: 600; }
+
+  .activity-list { display: flex; flex-direction: column; gap: 10px; }
+  .activity-item { display: flex; gap: 10px; font-size: 13.5px; }
+  .activity-item .t { color: var(--text-faint); font-size: 11.5px; flex: none; width: 62px; padding-top: 1px; }
+  .activity-item .dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; flex: none; }
+  .activity-empty { color: var(--text-faint); font-size: 13px; }
+
+  /* ---------- Assets view ---------- */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .toolbar .spacer { flex: 1; }
+  input[type="text"], input[type="search"], input[type="number"], select {
+    background: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text);
+    border-radius: 7px; padding: 8px 10px; font-size: 13.5px;
+  }
+  input::placeholder { color: var(--text-faint); }
+  .btn {
+    all: unset; cursor: pointer; font-size: 13.5px; font-weight: 600;
+    padding: 8px 14px; border-radius: 7px; background: var(--accent); color: var(--accent-contrast);
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.secondary { background: transparent; border: 1px solid var(--border-strong); color: var(--text); }
+  .btn.danger { background: var(--status-crit); color: #fff; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th {
+    text-align: start; font-weight: 600; color: var(--text-faint); font-size: 12px;
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  tbody td { padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:hover { background: var(--surface-2); }
+  .type-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  .type-chip .sw { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .status-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  .status-chip .sw { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .icon-btn {
+    all: unset; cursor: pointer; font-size: 12.5px; padding: 5px 9px; border-radius: 6px;
+    border: 1px solid var(--border-strong); color: var(--text-dim);
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--text-faint); }
+  .table-wrap { overflow-x: auto; border-radius: 10px; }
+  .table-empty { padding: 30px 10px; text-align: center; color: var(--text-faint); font-size: 13.5px; }
+
+  /* ---------- Racks view ---------- */
+  .racks-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+  .rack-list { display: flex; flex-direction: column; gap: 8px; }
+  .rack-card {
+    all: unset; cursor: pointer; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 9px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .rack-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .rack-card .name { font-weight: 600; font-size: 14px; }
+  .rack-card .room { color: var(--text-faint); font-size: 12px; }
+  .rack-card .meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-dim); }
+  .rack-card .compare-check { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .rack-card .compare-check input { margin: 0; }
+
+  .compare-trigger {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 12px;
+    background: var(--accent-soft); border: 1px solid var(--border-strong); border-radius: 8px; font-size: 12.5px;
+  }
+  .compare-trigger span { flex: 1; color: var(--text-dim); }
+  .compare-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .compare-head h3 { margin: 0; font-size: 15px; }
+  .compare-strip { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; }
+  .compare-col { flex: 0 0 210px; display: flex; flex-direction: column; gap: 8px; }
+  .compare-col .cc-name { font-weight: 600; font-size: 13.5px; }
+  .compare-col .cc-room { font-size: 11.5px; color: var(--text-faint); margin-top: -6px; }
+  .compare-badges { display: flex; flex-wrap: wrap; gap: 5px; }
+  .compare-badge { font-size: 10.5px; padding: 3px 7px; border-radius: 10px; background: var(--surface-3); color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
+  .compare-col .elevation { max-height: 420px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-dim); }
+  .legend .it { display: flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 9px; height: 9px; border-radius: 2px; }
+
+  .elevation-wrap { display: flex; flex-direction: column; gap: 12px; }
+  .elevation-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .elevation-head h3 { margin: 0; font-size: 16px; }
+  .elevation {
+    --u-height: 20px;
+    border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden;
+    max-height: 560px; overflow-y: auto; background: var(--surface-2);
+  }
+  @media (max-width: 640px) { .elevation { --u-height: 16px; } }
+  .u-row {
+    display: flex; align-items: stretch; border-bottom: 1px dashed var(--border);
+    height: var(--u-height);
+  }
+  .u-row .u-idx {
+    width: 32px; flex: none; font-size: 9.5px; color: var(--text-faint);
+    display: flex; align-items: center; justify-content: center; border-inline-end: 1px solid var(--border);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .u-row.empty { cursor: pointer; }
+  .u-row.empty:hover { background: var(--surface-3); }
+  .u-row.empty .plus { flex: 1; display: flex; align-items: center; padding-inline-start: 10px; font-size: 11px; color: var(--text-faint); opacity: 0; }
+  .u-row.empty:hover .plus { opacity: 1; }
+  .asset-block {
+    all: unset; cursor: pointer; flex: 1; display: flex; align-items: center; gap: 8px;
+    padding-inline-start: 10px; border-bottom: 1px dashed color-mix(in srgb, var(--bg) 40%, transparent);
+    color: #fff;
+  }
+  .asset-block .an { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .asset-block .au { font-size: 10.5px; opacity: 0.85; font-family: 'IBM Plex Mono', monospace; margin-inline-start: auto; margin-inline-end: 10px; }
+  .status-dot-inline { width: 6px; height: 6px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
+
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .chart-box { height: 260px; }
+  .cap-table-row { display: grid; grid-template-columns: 110px 1fr 60px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .cap-table-row:last-child { border-bottom: none; }
+
+  .floor-layout { display: grid; grid-template-columns: 220px 1fr 250px; gap: 14px; align-items: start; }
+  .floor-legend-panel { display: flex; flex-direction: column; gap: 12px; }
+  .floor-threshold { display: flex; flex-direction: column; gap: 8px; }
+  .floor-threshold label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-dim); }
+  .floor-threshold input { width: 100%; }
+  .floor-scale { height: 8px; border-radius: 5px; background: linear-gradient(90deg, var(--status-ok), var(--status-warn), var(--status-crit)); }
+  .floor-rack-list { display: flex; flex-direction: column; gap: 2px; }
+  .floor-rack-row {
+    all: unset; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    padding: 7px 6px; border-radius: 6px; font-size: 12.5px;
+  }
+  .floor-rack-row:hover { background: var(--surface-2); }
+  .floor-rack-row[aria-pressed="true"] { background: var(--accent-soft); }
+  .floor-rack-row .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .floor-rack-row .nm { flex: 1; }
+  .floor-rack-row .vl { font-family: 'IBM Plex Mono', monospace; color: var(--text-dim); direction: ltr; }
+  .floorplan-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .hall-size-control {
+    display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+    border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2);
+  }
+  .hall-size-control .hsc-label { font-size: 12px; color: var(--text-dim); margin-inline-end: 2px; }
+  .hall-size-control .hsc-x, .hall-size-control .hsc-unit { font-size: 12px; color: var(--text-faint); }
+  .hall-size-control input[type="number"] {
+    width: 58px; padding: 4px 6px; font-size: 12.5px; text-align: center;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: 5px;
+  }
+  .floorplan-wrap { width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2); overflow: hidden; touch-action: none; }
+  .floorplan-wrap svg { display: block; width: 100%; height: auto; }
+  .floor-cab { cursor: grab; }
+  .floor-cab.dragging { cursor: grabbing; opacity: .85; }
+  .floor-cab.overlap-warn rect.cab-fill { stroke: var(--status-crit); stroke-width: 2.5; stroke-dasharray: 4 3; }
+  .floor-cab rect.cab-fill { stroke-width: 1.5; }
+  .floor-cab.selected rect.cab-fill { stroke: var(--accent); stroke-width: 3; }
+  .floor-cab text { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; pointer-events: none; }
+  .floor-room-label { font-family: 'IBM Plex Sans','Vazirmatn',sans-serif; font-size: 13px; fill: var(--text-faint); }
+  .floor-util-label { font-family: 'IBM Plex Mono', monospace; font-size: 12px; fill: var(--text); }
+  .floor-elev-panel { display: flex; flex-direction: column; gap: 10px; }
+  .floor-elev-panel h3 { margin: 0; font-size: 14.5px; }
+
+  .media-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+  .media-legend .it { display: flex; align-items: center; gap: 6px; }
+  .media-legend .sw { width: 14px; height: 3px; border-radius: 2px; }
+  .media-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  .media-chip .sw { width: 14px; height: 3px; border-radius: 2px; }
+  .netdoc-layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; }
+  .netdiagram-wrap { width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-2); overflow: hidden; }
+  .netdiagram-wrap svg { display: block; width: 100%; height: auto; }
+  .net-node { cursor: pointer; }
+  .net-node circle.halo { opacity: 0; transition: opacity .12s ease; }
+  .net-node:hover circle.halo, .net-node.selected circle.halo { opacity: 1; }
+  .net-node text { font-size: 10px; fill: var(--text); font-family: 'IBM Plex Sans','Vazirmatn',sans-serif; }
+  .net-node text.rack-lbl { font-size: 8.5px; fill: var(--text-faint); }
+  .net-edge { transition: opacity .12s ease, stroke-width .12s ease; }
+  .net-info-panel { display: flex; flex-direction: column; gap: 12px; min-height: 200px; }
+  .net-info-panel h3 { margin: 0; font-size: 15px; }
+  .net-info-empty { color: var(--text-faint); font-size: 13px; }
+  .net-conn-item { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+  .net-conn-item:last-child { border-bottom: none; }
+  .net-conn-item .ports { color: var(--text-faint); font-family: 'IBM Plex Mono', monospace; direction: ltr; unicode-bidi: isolate; }
+  .spof-ok { color: var(--status-ok); font-size: 12.5px; }
+  .spof-warn { color: var(--status-crit); font-size: 12.5px; font-weight: 600; }
+  .spof-list { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+
+  .three-layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; }
+  .three-canvas-panel { display: flex; flex-direction: column; gap: 10px; }
+  .three-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .three-canvas-wrap {
+    position: relative; width: 100%; height: 460px; border-radius: 8px; overflow: hidden;
+    background: var(--surface-2); border: 1px solid var(--border-strong); touch-action: none;
+  }
+  .three-canvas-wrap canvas { display: block; width: 100% !important; height: 100% !important; cursor: grab; }
+  .three-canvas-wrap canvas:active { cursor: grabbing; }
+  @media (max-width: 640px) { .three-canvas-wrap { height: 340px; } }
+  .three-info-panel { display: flex; flex-direction: column; gap: 14px; min-height: 200px; }
+  .three-info-panel h3 { margin: 0; font-size: 15px; }
+  .three-info-panel .room { color: var(--text-faint); font-size: 12.5px; margin-top: -8px; }
+  .three-info-row { display: flex; flex-direction: column; gap: 6px; }
+  .three-info-row .lbl { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-dim); }
+  .three-info-empty { color: var(--text-faint); font-size: 13px; }
+
+  dialog {
+    border: 1px solid var(--border-strong); border-radius: 12px; padding: 0;
+    background: var(--surface); color: var(--text); box-shadow: var(--shadow);
+    width: min(480px, 92vw);
+  }
+  dialog::backdrop { background: rgba(8,12,16,0.5); }
+  .dialog-head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .dialog-head h3 { margin: 0; font-size: 15.5px; }
+  .dialog-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12.5px; color: var(--text-dim); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .dialog-foot { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+  .error-text { color: var(--status-crit); font-size: 12.5px; min-height: 16px; }
+  .close-x { all: unset; cursor: pointer; color: var(--text-faint); font-size: 18px; line-height: 1; padding: 4px; }
+
+  .empty-hint { font-size: 12.5px; color: var(--text-faint); line-height: 1.6; }
+
+  @media (max-width: 880px) {
+    #app { grid-template-columns: 1fr; }
+    .sidebar {
+      position: fixed; inset-inline-start: 0; top: 0; bottom: 0; width: 250px; z-index: 20;
+      transform: translateX(-102%);
+      transition: transform .22s ease;
+      padding-top: calc(20px + env(safe-area-inset-top, 0px));
+    }
+    html[dir="rtl"] .sidebar { transform: translateX(102%); }
+    body.nav-open .sidebar { transform: translateX(0); }
+    body.nav-open::after {
+      content: ""; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 15;
+    }
+    .menu-btn {
+      all: unset; display: flex; cursor: pointer; color: var(--text); font-size: 18px; padding: 4px 6px;
+    }
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+    .grid-2, .racks-layout, .charts-grid, .three-layout, .netdoc-layout, .floor-layout { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .kpi-row { grid-template-columns: 1fr; }
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="mark"><span class="dot"></span>RACKFRAME</span>
+      <span class="sub">DCIM Dashboard Sample</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="App sections" id="tabsNav">
+      <button role="tab" data-view="dashboard" aria-selected="true"><span class="sq"></span>Overview</button>
+      <button role="tab" data-view="assets" aria-selected="false"><span class="sq"></span>Assets</button>
+      <button role="tab" data-view="racks" aria-selected="false"><span class="sq"></span>Racks</button>
+      <button role="tab" data-view="floor" aria-selected="false"><span class="sq"></span>Floor Map</button>
+      <button role="tab" data-view="capacity" aria-selected="false"><span class="sq"></span>Capacity & Power</button>
+      <button role="tab" data-view="network" aria-selected="false"><span class="sq"></span>Network Docs</button>
+      <button role="tab" data-view="threeD" aria-selected="false"><span class="sq"></span>3D View</button>
+    </nav>
+    <div class="sidebar-foot">
+      <button class="ghost-btn" id="themeToggle" type="button">Theme: Auto</button>
+      <button class="ghost-btn" id="resetData" type="button">Reset to Sample Data</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="Open menu">☰</button>
+      <h1 id="topTitle">Overview</h1>
+      <span class="facility">— Sample data center, Hall A/B</span>
+      <span class="spacer"></span>
+      <span class="clock mono" id="clock"></span>
+    </div>
+
+    <!-- Dashboard -->
+    <section class="view active" data-panel="dashboard" role="tabpanel">
+      <div class="kpi-row" id="kpiRow"></div>
+      <div class="grid-2">
+        <div class="panel">
+          <h2 class="section-title">Rack Status — click to view details</h2>
+          <div class="tile-legend" id="tileLegend"></div>
+          <div class="tile-grid" id="rackUtilList"></div>
+        </div>
+        <div class="panel">
+          <h2 class="section-title">Recent Activity</h2>
+          <div class="activity-list" id="activityList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Assets -->
+    <section class="view" data-panel="assets" role="tabpanel">
+      <div class="toolbar">
+        <input type="search" id="assetSearch" placeholder="Search name or model…" style="min-width:200px">
+        <select id="filterType"><option value="">All Types</option></select>
+        <select id="filterRack"><option value="">All Racks</option></select>
+        <select id="filterStatus">
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="maintenance">Maintenance</option>
+          <option value="offline">Offline</option>
+        </select>
+        <span class="spacer"></span>
+        <button class="btn" id="addAssetBtn" type="button">+ Add Asset</button>
+      </div>
+      <div class="panel table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Type</th><th>Model</th><th>Rack</th><th>Position (U)</th><th>Power (kW)</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="assetsTbody"></tbody>
+        </table>
+        <div class="table-empty" id="assetsEmpty" hidden>No assets found matching this filter.</div>
+      </div>
+    </section>
+
+    <!-- Racks -->
+    <section class="view" data-panel="racks" role="tabpanel">
+      <div class="racks-layout">
+        <div>
+          <div class="rack-list" id="rackList"></div>
+          <div class="compare-trigger" id="compareTrigger" hidden>
+            <span id="compareCount"></span>
+            <button class="btn" id="showCompareBtn" type="button">Show Comparison</button>
+            <button class="btn secondary" id="clearCompareBtn" type="button">Clear</button>
+          </div>
+        </div>
+        <div>
+          <div class="elevation-wrap" id="singleElevWrap">
+            <div class="elevation-head">
+              <h3 id="elevTitle">—</h3>
+              <div class="legend" id="typeLegend"></div>
+            </div>
+            <div class="elevation" id="elevation"></div>
+            <p class="empty-hint">Click an empty slot to add a new asset there; click an asset to edit or delete it. To compare multiple racks, use the checkbox next to each rack in the list.</p>
+          </div>
+          <div class="compare-wrap" id="compareWrap" hidden>
+            <div class="compare-head">
+              <h3>Compare Racks</h3>
+              <button class="btn secondary" id="exitCompareBtn" type="button">Back to Single View</button>
+            </div>
+            <div class="compare-strip" id="compareStrip"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Floor map -->
+    <section class="view" data-panel="floor" role="tabpanel">
+      <div class="floor-layout">
+        <div class="panel floor-legend-panel">
+          <button class="btn" id="addRackBtn" type="button" style="align-self:flex-start">+ Add Rack</button>
+          <div class="field">
+            <label for="floorMetric" style="font-size:12.5px;color:var(--text-dim)">Color By</label>
+            <select id="floorMetric">
+              <option value="power">Power Usage (kW)</option>
+              <option value="space">Space Used (U)</option>
+              <option value="temp">Intake Air Temp (°F)</option>
+            </select>
+          </div>
+          <div class="media-legend" id="floorMultiLegend"></div>
+          <div class="floor-threshold">
+            <div class="floor-scale"></div>
+            <label>Yellow threshold (needs attention)
+              <input type="number" id="floorThreshYellow" step="0.1">
+            </label>
+            <label>Red threshold (critical)
+              <input type="number" id="floorThreshRed" step="0.1">
+            </label>
+          </div>
+          <h2 class="section-title" style="margin-bottom:0">Racks</h2>
+          <div class="floor-rack-list" id="floorRackList"></div>
+        </div>
+
+        <div class="panel">
+          <div class="floorplan-head">
+            <h2 class="section-title" style="margin-bottom:0">Floor Map</h2>
+            <div class="hall-size-control">
+              <span class="hsc-label">Hall size</span>
+              <input type="number" id="hallWidthCm" min="120" step="10" title="Hall width in cm">
+              <span class="hsc-x">×</span>
+              <input type="number" id="hallLengthCm" min="120" step="10" title="Hall length in cm">
+              <span class="hsc-unit">cm</span>
+            </div>
+          </div>
+          <div class="floorplan-wrap" id="floorPlan"></div>
+          <p class="empty-hint">Drag a rack anywhere on the floor to reposition it — it moves freely, not snapped to the tile lines. Click a rack to select it and view its elevation.</p>
+        </div>
+
+        <div class="panel floor-elev-panel">
+          <h3 id="floorElevTitle">—</h3>
+          <div class="elevation" id="floorElevation"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Capacity -->
+    <section class="view" data-panel="capacity" role="tabpanel">
+      <div class="charts-grid">
+        <div class="panel">
+          <h2 class="section-title">Power Usage vs. Capacity (kW)</h2>
+          <div class="chart-box"><canvas id="powerChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <h2 class="section-title">Space Used vs. Capacity (U)</h2>
+          <div class="chart-box"><canvas id="spaceChart"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 class="section-title">Per-Rack Capacity Detail</h2>
+        <div id="capTable"></div>
+      </div>
+    </section>
+
+    <!-- Network documentation -->
+    <section class="view" data-panel="network" role="tabpanel">
+      <div class="toolbar">
+        <input type="search" id="connSearch" placeholder="Search device name or port…" style="min-width:220px">
+        <select id="connMediaFilter">
+          <option value="">All Media</option>
+          <option value="cat6">Copper Cat6</option>
+          <option value="fiber_sm">Single-mode fiber</option>
+          <option value="fiber_mm">Multi-mode fiber</option>
+        </select>
+        <span class="spacer"></span>
+        <button class="btn" id="addConnBtn" type="button">+ Add Connection</button>
+      </div>
+      <div class="panel table-wrap">
+        <table>
+          <thead>
+            <tr><th>Device A</th><th>Rack A</th><th>Port A</th><th>Device B</th><th>Rack B</th><th>Port B</th><th>Media Type</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="connTbody"></tbody>
+        </table>
+        <div class="table-empty" id="connEmpty" hidden>No connections found matching this filter.</div>
+      </div>
+
+      <div class="netdoc-layout">
+        <div class="panel">
+          <h2 class="section-title">Connectivity Diagram — click a device</h2>
+          <div class="media-legend" id="mediaLegend"></div>
+          <div class="netdiagram-wrap" id="netDiagram"></div>
+        </div>
+        <div class="panel net-info-panel" id="netInfoPanel"></div>
+      </div>
+    </section>
+
+    <!-- 3D room view -->
+    <section class="view" data-panel="threeD" role="tabpanel">
+      <div class="three-layout">
+        <div class="panel three-canvas-panel">
+          <div class="three-toolbar">
+            <div class="legend" id="threeLegend"></div>
+            <label class="ghost-btn" style="cursor:pointer;display:flex;align-items:center;gap:6px">
+              <input type="checkbox" id="threeCablesToggle" checked style="margin:0"> Show Cables
+            </label>
+            <button class="ghost-btn" id="threeResetView" type="button">Reset Camera</button>
+          </div>
+          <div class="legend" id="threeTypeLegend" style="margin-top:-4px"></div>
+          <div class="three-canvas-wrap" id="threeCanvasWrap"></div>
+          <p class="empty-hint">Drag to rotate, scroll to zoom, and click a rack to select it. Each asset inside a rack is shown individually in its own type color (see legend above); active cables are drawn as solid lines and decommissioned cables as dashed lines.</p>
+        </div>
+        <div class="panel three-info-panel" id="threeInfoPanel"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<dialog id="assetDialog">
+  <form method="dialog" id="assetForm">
+    <div class="dialog-head">
+      <h3 id="dialogTitle">Add Asset</h3>
+      <button type="button" class="close-x" id="dialogClose" aria-label="Close">✕</button>
+    </div>
+    <div class="dialog-body">
+      <input type="hidden" id="f_id">
+      <div class="field">
+        <label for="f_name">Device Name</label>
+        <input type="text" id="f_name" required placeholder="e.g. srv-web-07">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="f_type">Type</label>
+          <select id="f_type">
+            <option value="server">Server</option>
+            <option value="network">Network</option>
+            <option value="storage">Storage</option>
+            <option value="pdu">PDU (Power Distribution)</option>
+            <option value="patch">Patch Panel</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f_model">Model (optional)</label>
+          <input type="text" id="f_model" placeholder="e.g. Dell R650">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="f_rack">Rack</label>
+          <select id="f_rack"></select>
+        </div>
+        <div class="field">
+          <label for="f_status">Status</label>
+          <select id="f_status">
+            <option value="active">Active</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="offline">Offline</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="f_startu">Start at U</label>
+          <input type="number" id="f_startu" min="1" value="1">
+        </div>
+        <div class="field">
+          <label for="f_sizeu">Height (U count)</label>
+          <input type="number" id="f_sizeu" min="1" value="1">
+        </div>
+      </div>
+      <div class="field">
+        <label for="f_power">Power Usage (kW)</label>
+        <input type="number" id="f_power" min="0" step="0.1" value="0.5">
+      </div>
+      <p class="empty-hint" id="pduInfo" hidden></p>
+      <div class="error-text" id="formError"></div>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" class="btn danger" id="deleteAssetBtn" style="display:none">Delete</button>
+      <span class="spacer" style="flex:1"></span>
+      <button type="button" class="btn secondary" id="cancelBtn">Cancel</button>
+      <button type="submit" class="btn" id="saveBtn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="connDialog">
+  <form method="dialog" id="connForm">
+    <div class="dialog-head">
+      <h3 id="connDialogTitle">Add Connection</h3>
+      <button type="button" class="close-x" id="connDialogClose" aria-label="Close">✕</button>
+    </div>
+    <div class="dialog-body">
+      <input type="hidden" id="c_id">
+      <div class="field-row">
+        <div class="field">
+          <label for="c_assetA">Device A</label>
+          <select id="c_assetA"></select>
+        </div>
+        <div class="field">
+          <label for="c_portA">Port A</label>
+          <input type="text" id="c_portA" placeholder="e.g. Gi1/0/1">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="c_assetB">Device B</label>
+          <select id="c_assetB"></select>
+        </div>
+        <div class="field">
+          <label for="c_portB">Port B</label>
+          <input type="text" id="c_portB" placeholder="e.g. eth0">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="c_media">Media Type</label>
+          <select id="c_media">
+            <option value="cat6">Copper Cat6 (blue)</option>
+            <option value="fiber_sm">Single-mode fiber (yellow)</option>
+            <option value="fiber_mm">Multi-mode fiber (turquoise)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="c_status">Status</label>
+          <select id="c_status">
+            <option value="active">Active</option>
+            <option value="decommissioned">Decommissioned</option>
+          </select>
+        </div>
+      </div>
+      <div class="error-text" id="connFormError"></div>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" class="btn danger" id="deleteConnBtn" style="display:none">Delete</button>
+      <span class="spacer" style="flex:1"></span>
+      <button type="button" class="btn secondary" id="connCancelBtn">Cancel</button>
+      <button type="submit" class="btn" id="connSaveBtn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="rackDialog">
+  <form method="dialog" id="rackForm">
+    <div class="dialog-head">
+      <h3 id="rackDialogTitle">Add Rack</h3>
+      <button type="button" class="close-x" id="rackDialogClose" aria-label="Close">✕</button>
+    </div>
+    <div class="dialog-body">
+      <input type="hidden" id="r_id">
+      <div class="field">
+        <label for="r_name">Rack Name</label>
+        <input type="text" id="r_name" required placeholder="e.g. Rack C-01">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="r_room">Hall</label>
+          <input type="text" id="r_room" list="roomOptions" placeholder="e.g. Hall C">
+          <datalist id="roomOptions"></datalist>
+        </div>
+        <div class="field">
+          <label for="r_totalu">Capacity (U count)</label>
+          <input type="number" id="r_totalu" min="1" value="42">
+        </div>
+      </div>
+      <div class="field">
+        <label for="r_powercap">Power Capacity (kW)</label>
+        <input type="number" id="r_powercap" min="0.1" step="0.1" value="8">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="r_width">Width (cm)</label>
+          <input type="number" id="r_width" min="30" step="1" value="60">
+        </div>
+        <div class="field">
+          <label for="r_depth">Depth (cm)</label>
+          <input type="number" id="r_depth" min="30" step="1" value="100">
+        </div>
+      </div>
+      <p class="empty-hint">The floor grid lines are 60×60 cm for reference only. Enter the rack's real footprint — it will be drawn to scale and can be placed anywhere on the Floor Map, not snapped to the grid.</p>
+      <div class="error-text" id="rackFormError"></div>
+    </div>
+    <div class="dialog-foot">
+      <button type="button" class="btn danger" id="deleteRackBtn" style="display:none">Delete Rack</button>
+      <span class="spacer" style="flex:1"></span>
+      <button type="button" class="btn secondary" id="rackCancelBtn">Cancel</button>
+      <button type="submit" class="btn" id="rackSaveBtn">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+
+  var STORAGE_KEY = "rackframe-dcim-v1";
+  var THEME_KEY = "rackframe-dcim-theme";
+  var TILE = 60, FLOOR_MARGIN = 24;
+  var DEFAULT_FLOOR_SIZE = { widthCm: 600, lengthCm: 360 };
+  function roomSize(){
+    return (state && state.floorSize) || DEFAULT_FLOOR_SIZE;
+  }
+
+  var TYPES = {
+    server:  { label: "Server",              color: "var(--type-server)"  },
+    network: { label: "Network",              color: "var(--type-network)" },
+    storage: { label: "Storage",         color: "var(--type-storage)" },
+    pdu:     { label: "PDU",               color: "var(--type-pdu)"     },
+    patch:   { label: "Patch Panel",             color: "var(--type-patch)"  }
+  };
+  var STATUS = {
+    active:      { label: "Active",    color: "var(--status-ok)" },
+    maintenance: { label: "Maintenance", color: "var(--status-warn)" },
+    offline:     { label: "Offline",   color: "var(--status-offline)" }
+  };
+
+  function uid(prefix){ return prefix + "_" + Math.random().toString(36).slice(2,9); }
+
+  function seedData(){
+    var racks = [
+      { id: "r1", name: "Rack A-01", room: "Hall A", totalU: 42, powerCapKw: 8, tempFront: 74.2, tempBack: 91.4, xCm: 60, yCm: 40, widthCm: 60, depthCm: 100 },
+      { id: "r2", name: "Rack A-02", room: "Hall A", totalU: 42, powerCapKw: 8, tempFront: 75.6, tempBack: 93.1, xCm: 180, yCm: 40, widthCm: 60, depthCm: 100 },
+      { id: "r3", name: "Rack B-01", room: "Hall B", totalU: 47, powerCapKw: 10, tempFront: 73.8, tempBack: 90.2, xCm: 60, yCm: 200, widthCm: 60, depthCm: 120 },
+      { id: "r4", name: "Rack B-02", room: "Hall B", totalU: 47, powerCapKw: 10, tempFront: 76.9, tempBack: 95.3, xCm: 180, yCm: 200, widthCm: 60, depthCm: 120 }
+    ];
+    var assets = [
+      { id: uid("a"), name: "srv-web-01", type:"server", model:"Dell R650", rackId:"r1", startU:38, sizeU:2, powerKw:0.9, status:"active" },
+      { id: uid("a"), name: "srv-web-02", type:"server", model:"Dell R650", rackId:"r1", startU:36, sizeU:2, powerKw:0.9, status:"active" },
+      { id: uid("a"), name: "srv-db-01",  type:"server", model:"HPE DL380", rackId:"r1", startU:30, sizeU:4, powerKw:1.6, status:"active" },
+      { id: uid("a"), name: "sw-core-a1", type:"network", model:"Cisco 9300", rackId:"r1", startU:41, sizeU:1, powerKw:0.4, status:"active" },
+      { id: uid("a"), name: "pdu-a1-l",   type:"pdu", model:"APC AP8959", rackId:"r1", startU:1, sizeU:1, powerKw:0.1, status:"active" },
+      { id: uid("a"), name: "patch-a1",   type:"patch", model:"24-port Cat6", rackId:"r1", startU:40, sizeU:1, powerKw:0, status:"active" },
+
+      { id: uid("a"), name: "srv-app-01", type:"server", model:"Dell R650", rackId:"r2", startU:34, sizeU:2, powerKw:0.85, status:"active" },
+      { id: uid("a"), name: "srv-app-02", type:"server", model:"Dell R650", rackId:"r2", startU:32, sizeU:2, powerKw:0.85, status:"maintenance" },
+      { id: uid("a"), name: "san-01",     type:"storage", model:"NetApp AFF", rackId:"r2", startU:20, sizeU:4, powerKw:1.8, status:"active" },
+      { id: uid("a"), name: "sw-core-a2", type:"network", model:"Cisco 9300", rackId:"r2", startU:41, sizeU:1, powerKw:0.4, status:"active" },
+
+      { id: uid("a"), name: "srv-web-03", type:"server", model:"Dell R650", rackId:"r3", startU:44, sizeU:2, powerKw:0.9, status:"active" },
+      { id: uid("a"), name: "srv-web-04", type:"server", model:"Dell R650", rackId:"r3", startU:42, sizeU:2, powerKw:0.9, status:"active" },
+      { id: uid("a"), name: "srv-db-02",  type:"server", model:"HPE DL380", rackId:"r3", startU:34, sizeU:4, powerKw:1.7, status:"active" },
+      { id: uid("a"), name: "san-02",     type:"storage", model:"NetApp AFF", rackId:"r3", startU:24, sizeU:4, powerKw:1.9, status:"active" },
+      { id: uid("a"), name: "sw-dist-b1", type:"network", model:"Cisco 9300", rackId:"r3", startU:46, sizeU:1, powerKw:0.4, status:"active" },
+      { id: uid("a"), name: "pdu-b1-l",   type:"pdu", model:"APC AP8959", rackId:"r3", startU:1, sizeU:1, powerKw:0.1, status:"active" },
+
+      { id: uid("a"), name: "srv-batch-01", type:"server", model:"Supermicro", rackId:"r4", startU:40, sizeU:3, powerKw:1.4, status:"offline" },
+      { id: uid("a"), name: "sw-dist-b2",   type:"network", model:"Cisco 9300", rackId:"r4", startU:46, sizeU:1, powerKw:0.4, status:"active" },
+      { id: uid("a"), name: "patch-b2",     type:"patch", model:"48-port Cat6", rackId:"r4", startU:44, sizeU:1, powerKw:0, status:"active" }
+    ];
+    var activity = [
+      { ts: Date.now() - 1000*60*40, text: "srv-batch-01 changed to 'offline' status.", kind:"warn" },
+      { ts: Date.now() - 1000*60*90, text: "san-02 was added to Rack B-01.", kind:"ok" },
+      { ts: Date.now() - 1000*60*200, text: "srv-app-02 was flagged for maintenance.", kind:"warn" }
+    ];
+    function byName(n){ return assets.find(function(a){ return a.name === n; }); }
+    function cid(){ return uid("c"); }
+    var connections = [
+      { id: cid(), aAsset: byName("patch-a1").id, aPort:"1",  bAsset: byName("sw-core-a1").id, bPort:"Gi1/0/1", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-core-a1").id, aPort:"Gi1/0/2", bAsset: byName("srv-web-01").id, bPort:"eth0", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-core-a1").id, aPort:"Gi1/0/3", bAsset: byName("srv-web-02").id, bPort:"eth0", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-core-a1").id, aPort:"Te1/1/1", bAsset: byName("srv-db-01").id, bPort:"eth0", media:"fiber_mm", status:"active" },
+
+      { id: cid(), aAsset: byName("sw-core-a2").id, aPort:"Gi1/0/2", bAsset: byName("srv-app-01").id, bPort:"eth0", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-core-a2").id, aPort:"Gi1/0/3", bAsset: byName("srv-app-02").id, bPort:"eth0", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-core-a2").id, aPort:"Te1/1/1", bAsset: byName("san-01").id, bPort:"port0", media:"fiber_mm", status:"active" },
+
+      { id: cid(), aAsset: byName("sw-dist-b1").id, aPort:"Gi1/0/2", bAsset: byName("srv-web-03").id, bPort:"eth0", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-dist-b1").id, aPort:"Gi1/0/3", bAsset: byName("srv-web-04").id, bPort:"eth0", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-dist-b1").id, aPort:"Te1/1/1", bAsset: byName("srv-db-02").id, bPort:"eth0", media:"fiber_mm", status:"active" },
+      { id: cid(), aAsset: byName("sw-dist-b1").id, aPort:"Te1/1/2", bAsset: byName("san-02").id, bPort:"port0", media:"fiber_mm", status:"active" },
+      { id: cid(), aAsset: byName("patch-a1").id, aPort:"12", bAsset: byName("sw-core-a2").id, bPort:"Gi1/0/9", media:"cat6", status:"decommissioned" },
+
+      { id: cid(), aAsset: byName("sw-dist-b2").id, aPort:"Gi1/0/2", bAsset: byName("srv-batch-01").id, bPort:"eth0", media:"cat6", status:"active" },
+      { id: cid(), aAsset: byName("sw-dist-b2").id, aPort:"Gi1/0/3", bAsset: byName("patch-b2").id, bPort:"1", media:"cat6", status:"active" },
+
+      { id: cid(), aAsset: byName("sw-core-a1").id, aPort:"Te1/2/1", bAsset: byName("sw-dist-b1").id, bPort:"Te1/2/1", media:"fiber_sm", status:"active" },
+      { id: cid(), aAsset: byName("sw-core-a2").id, aPort:"Te1/2/1", bAsset: byName("sw-dist-b2").id, bPort:"Te1/2/1", media:"fiber_sm", status:"active" }
+    ].filter(function(c){ return c.aAsset && c.bAsset; });
+    return { racks: racks, assets: assets, activity: activity, connections: connections, floorSize: { widthCm: 600, lengthCm: 360 } };
+  }
+
+  var state = null;
+
+  function loadState(){
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (!parsed.connections) parsed.connections = [];
+        if (!parsed.floorSize || typeof parsed.floorSize.widthCm !== "number") parsed.floorSize = { widthCm: 600, lengthCm: 360 };
+        (parsed.racks || []).forEach(function(r, i){
+          if (typeof r.tempFront !== "number") r.tempFront = 72 + Math.random()*5;
+          if (typeof r.tempBack !== "number") r.tempBack = r.tempFront + 15 + Math.random()*4;
+          if (typeof r.widthCm !== "number") r.widthCm = (r.widthTiles ? r.widthTiles*60 : 60);
+          if (typeof r.depthCm !== "number") r.depthCm = (r.depthTiles ? r.depthTiles*60 : 100);
+          delete r.widthTiles; delete r.depthTiles;
+          if (typeof r.xCm !== "number" || typeof r.yCm !== "number"){
+            if (typeof r.gx === "number" && typeof r.gy === "number"){
+              r.xCm = r.gx * 60; r.yCm = r.gy * 60;
+            } else {
+              r.xCm = (i*80) % Math.max(60, parsed.floorSize.widthCm - r.widthCm);
+              r.yCm = Math.floor((i*80)/Math.max(60, parsed.floorSize.widthCm)) * 140;
+            }
+          }
+          delete r.gx; delete r.gy;
+        });
+        return parsed;
+      }
+    } catch(e) { /* ignore, fall through to seed */ }
+    var seeded = seedData();
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded)); } catch(e) {}
+    return seeded;
+  }
+  function saveState(){
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+  }
+  function logActivity(text, kind){
+    state.activity.unshift({ ts: Date.now(), text: text, kind: kind || "ok" });
+    state.activity = state.activity.slice(0, 20);
+  }
+
+  /* ---------- helpers ---------- */
+  function rackById(id){ return state.racks.find(function(r){ return r.id === id; }); }
+  function assetsForRack(rackId){ return state.assets.filter(function(a){ return a.rackId === rackId; }); }
+  function usedU(rackId){ return assetsForRack(rackId).reduce(function(s,a){ return s + a.sizeU; }, 0); }
+  function usedKw(rackId){ return assetsForRack(rackId).reduce(function(s,a){ return s + (a.powerKw||0); }, 0); }
+  function levelFor(pct){ if (pct >= 90) return "crit"; if (pct >= 70) return "warn"; return "ok"; }
+  function fmt1(n){ return (Math.round(n*10)/10).toString(); }
+  function timeAgo(ts){
+    var mins = Math.round((Date.now()-ts)/60000);
+    if (mins < 1) return "now";
+    if (mins < 60) return mins + " min ago";
+    var hrs = Math.round(mins/60);
+    if (hrs < 24) return hrs + " hr ago";
+    return Math.round(hrs/24) + " days ago";
+  }
+
+  /* ---------- tabs ---------- */
+  var tabsNav = document.getElementById("tabsNav");
+  var views = document.querySelectorAll(".view");
+  var topTitle = document.getElementById("topTitle");
+  var titles = { dashboard:"Overview", assets:"Assets", racks:"Racks", floor:"Floor Map", capacity:"Capacity & Power", network:"Network Docs", threeD:"3D View" };
+  var selectedRackId = null;
+  var charts = { power:null, space:null };
+
+  function setView(name){
+    tabsNav.querySelectorAll("button").forEach(function(b){
+      b.setAttribute("aria-selected", b.dataset.view === name ? "true" : "false");
+    });
+    views.forEach(function(v){ v.classList.toggle("active", v.dataset.panel === name); });
+    topTitle.textContent = titles[name] || "";
+    document.body.classList.remove("nav-open");
+    if (name === "dashboard") renderDashboard();
+    if (name === "assets") renderAssets();
+    if (name === "racks") renderRacks();
+    if (name === "floor") renderFloorMap();
+    if (name === "capacity") renderCapacity();
+    if (name === "network") renderNetworkDocs();
+    if (name === "threeD") { initThreeScene(); refreshThreeRacks(); startThreeLoop(); }
+    else { stopThreeLoop(); }
+  }
+  tabsNav.addEventListener("click", function(e){
+    var btn = e.target.closest("button[data-view]");
+    if (btn) setView(btn.dataset.view);
+  });
+  document.getElementById("menuBtn").addEventListener("click", function(){
+    document.body.classList.toggle("nav-open");
+  });
+
+  /* ---------- dashboard ---------- */
+  function rackHealthLevel(r){
+    var pctU = r.totalU ? (usedU(r.id)/r.totalU*100) : 0;
+    var pctK = r.powerCapKw ? (usedKw(r.id)/r.powerCapKw*100) : 0;
+    ensureFloorThresholds("temp");
+    var tempLvl = levelForValue(r.tempFront||0, "temp");
+    var lvls = [levelFor(pctU), levelFor(pctK), tempLvl];
+    if (lvls.indexOf("crit") !== -1) return "crit";
+    if (lvls.indexOf("warn") !== -1) return "warn";
+    return "ok";
+  }
+
+  function renderDashboard(){
+    var totalRacks = state.racks.length;
+    var totalAssets = state.assets.length;
+    var totalKwUsed = 0, totalKwCap = 0, totalUUsed = 0, totalUCap = 0, tempSum = 0;
+    state.racks.forEach(function(r){
+      totalKwUsed += usedKw(r.id); totalKwCap += r.powerCapKw;
+      totalUUsed += usedU(r.id); totalUCap += r.totalU;
+      tempSum += (r.tempFront || 0);
+    });
+    var powerPct = totalKwCap ? Math.round(totalKwUsed/totalKwCap*100) : 0;
+    var spacePct = totalUCap ? Math.round(totalUUsed/totalUCap*100) : 0;
+    var avgTemp = totalRacks ? tempSum/totalRacks : 0;
+    ensureFloorThresholds("temp");
+    var avgTempLvl = totalRacks ? levelForValue(avgTemp, "temp") : "ok";
+
+    var needsAttentionCount = state.assets.filter(function(a){ return a.status !== "active"; }).length;
+    var naLvl = needsAttentionCount === 0 ? "ok" : (needsAttentionCount / Math.max(totalAssets,1) > 0.15 ? "crit" : "warn");
+
+    var activeConnCount = state.connections.filter(function(c){ return c.status === "active"; }).length;
+    var spofCount = countSpofRisks();
+    var spofLvl = spofCount === 0 ? "ok" : "crit";
+
+    var kpiRow = document.getElementById("kpiRow");
+    kpiRow.innerHTML =
+      kpiCard("Racks", totalRacks, null, null) +
+      kpiCard("Installed Assets", totalAssets, null, null) +
+      kpiCard("Power Usage", fmt1(totalKwUsed) + " <small>/ " + fmt1(totalKwCap) + " kW</small>", powerPct, levelFor(powerPct)) +
+      kpiCard("Space Used", totalUUsed + " <small>/ " + totalUCap + " U</small>", spacePct, levelFor(spacePct)) +
+      kpiCard("Avg Intake Temp", totalRacks ? (fmt1(avgTemp) + ' <small class="txt-'+avgTempLvl+'">°F</small>') : "—", null, null) +
+      kpiCard("Assets Needing Attention", needsAttentionCount + ' <small class="txt-'+naLvl+'">of ' + totalAssets + "</small>", null, null) +
+      kpiCard("Network SPOF Risks", spofCount + ' <small class="txt-'+spofLvl+'">/ ' + activeConnCount + " links</small>", null, null);
+
+    document.getElementById("tileLegend").innerHTML =
+      '<span class="it"><span class="sw" style="background:var(--status-ok)"></span>Healthy</span>' +
+      '<span class="it"><span class="sw" style="background:var(--status-warn)"></span>Needs Attention</span>' +
+      '<span class="it"><span class="sw" style="background:var(--status-crit)"></span>Critical</span>' +
+      '<span class="it" style="color:var(--text-faint)">Color reflects the worst of space, power, and temperature</span>';
+
+    var rackUtilList = document.getElementById("rackUtilList");
+    var sevRank = { crit: 0, warn: 1, ok: 2 };
+    var tileRacks = state.racks.slice().sort(function(a,b){
+      var la = rackHealthLevel(a), lb = rackHealthLevel(b);
+      if (sevRank[la] !== sevRank[lb]) return sevRank[la] - sevRank[lb];
+      return (usedU(b.id)/b.totalU) - (usedU(a.id)/a.totalU);
+    });
+    rackUtilList.innerHTML = tileRacks.map(function(r){
+      var lvl = rackHealthLevel(r);
+      var pctU = Math.round(usedU(r.id)/r.totalU*100);
+      var pctK = Math.round(usedKw(r.id)/r.powerCapKw*100);
+      var tempLvl = levelForValue(r.tempFront||0, "temp");
+      var offlineCount = assetsForRack(r.id).filter(function(a){ return a.status !== "active"; }).length;
+      var alerts = [];
+      if (offlineCount) alerts.push(offlineCount + " device(s) need attention");
+      if (levelFor(pctK) === "crit") alerts.push("power critical");
+      else if (levelFor(pctK) === "warn") alerts.push("power elevated");
+      if (tempLvl === "crit") alerts.push("temp critical");
+      else if (tempLvl === "warn") alerts.push("temp elevated");
+      var styleVars = "--tile-accent:var(--status-"+lvl+");" +
+        "--tile-bg:color-mix(in srgb, var(--status-"+lvl+") 10%, var(--surface));" +
+        "--tile-border:color-mix(in srgb, var(--status-"+lvl+") 28%, var(--border));";
+      return '<button class="site-tile" style="'+styleVars+'" data-tile-rack="'+r.id+'">' +
+        '<span class="tile-top"><span class="tile-pct num">'+pctU+'%</span><span class="tile-flag"></span></span>' +
+        '<span class="tile-name">'+escapeHtml(r.name)+'</span>' +
+        '<span class="tile-room">'+escapeHtml(r.room)+'</span>' +
+        '<span class="tile-sub">'+usedU(r.id)+'/'+r.totalU+'U · '+fmt1(usedKw(r.id))+'/'+fmt1(r.powerCapKw)+'kW · '+fmt1(r.tempFront||0)+'°F</span>' +
+        (alerts.length ? '<span class="tile-alert">'+escapeHtml(alerts.join(" · "))+'</span>' : '') +
+      '</button>';
+    }).join("") || '<p class="activity-empty">No racks recorded yet.</p>';
+    rackUtilList.querySelectorAll("[data-tile-rack]").forEach(function(tile){
+      tile.addEventListener("click", function(){
+        selectedRackId = tile.dataset.tileRack;
+        setView("racks");
+      });
+    });
+
+    var activityList = document.getElementById("activityList");
+    if (!state.activity.length){
+      activityList.innerHTML = '<p class="activity-empty">No activity recorded yet.</p>';
+    } else {
+      activityList.innerHTML = state.activity.slice(0,7).map(function(a){
+        var color = a.kind === "warn" ? "var(--status-warn)" : (a.kind === "crit" ? "var(--status-crit)" : "var(--status-ok)");
+        return '<div class="activity-item">' +
+          '<span class="dot" style="background:'+color+'"></span>' +
+          '<span>'+escapeHtml(a.text)+'</span>' +
+          '<span class="t mono">'+timeAgo(a.ts)+'</span>' +
+        '</div>';
+      }).join("");
+    }
+  }
+  function kpiCard(label, value, pct, lvl){
+    var barHtml = (pct === null) ? "" : '<div class="bar"><i class="lvl-'+lvl+'" style="width:'+Math.min(pct,100)+'%"></i></div>';
+    return '<div class="kpi-card"><span class="label">'+label+'</span>' +
+      '<span class="value num">'+value+(pct!==null ? ' <small class="txt-'+lvl+'">'+pct+'%</small>' : '')+'</span>' +
+      barHtml + '</div>';
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  /* ---------- assets view ---------- */
+  var searchInput = document.getElementById("assetSearch");
+  var filterType = document.getElementById("filterType");
+  var filterRack = document.getElementById("filterRack");
+  var filterStatus = document.getElementById("filterStatus");
+
+  function populateFilterOptions(){
+    filterType.innerHTML = '<option value="">All Types</option>' +
+      Object.keys(TYPES).map(function(k){ return '<option value="'+k+'">'+TYPES[k].label+'</option>'; }).join("");
+    filterRack.innerHTML = '<option value="">All Racks</option>' +
+      state.racks.map(function(r){ return '<option value="'+r.id+'">'+escapeHtml(r.name)+'</option>'; }).join("");
+  }
+
+  function renderAssets(){
+    var q = searchInput.value.trim().toLowerCase();
+    var tFilter = filterType.value, rFilter = filterRack.value, sFilter = filterStatus.value;
+    var list = state.assets.filter(function(a){
+      if (tFilter && a.type !== tFilter) return false;
+      if (rFilter && a.rackId !== rFilter) return false;
+      if (sFilter && a.status !== sFilter) return false;
+      if (q && (a.name+" "+(a.model||"")).toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+    var tbody = document.getElementById("assetsTbody");
+    var emptyEl = document.getElementById("assetsEmpty");
+    if (!list.length){
+      tbody.innerHTML = "";
+      emptyEl.hidden = false;
+      return;
+    }
+    emptyEl.hidden = true;
+    tbody.innerHTML = list.map(function(a){
+      var rack = rackById(a.rackId);
+      var t = TYPES[a.type], s = STATUS[a.status];
+      return "<tr>" +
+        "<td>"+escapeHtml(a.name)+"</td>" +
+        "<td><span class='type-chip'><span class='sw' style='background:"+t.color+"'></span>"+t.label+"</span></td>" +
+        "<td>"+escapeHtml(a.model||"—")+"</td>" +
+        "<td>"+(rack?escapeHtml(rack.name):"—")+"</td>" +
+        "<td class='mono'>U"+a.startU+"–U"+(a.startU+a.sizeU-1)+"</td>" +
+        "<td class='mono'>"+fmt1(a.powerKw||0)+"</td>" +
+        "<td><span class='status-chip'><span class='sw' style='background:"+s.color+"'></span>"+s.label+"</span></td>" +
+        "<td><div class='row-actions'><button class='icon-btn' data-edit='"+a.id+"'>Edit</button></div></td>" +
+      "</tr>";
+    }).join("");
+  }
+
+  document.getElementById("assetsTbody").addEventListener("click", function(e){
+    var btn = e.target.closest("button[data-edit]");
+    if (btn) openAssetDialog(state.assets.find(function(a){ return a.id === btn.dataset.edit; }));
+  });
+  [searchInput, filterType, filterRack, filterStatus].forEach(function(el){
+    el.addEventListener("input", renderAssets);
+    el.addEventListener("change", renderAssets);
+  });
+  document.getElementById("addAssetBtn").addEventListener("click", function(){ openAssetDialog(null); });
+
+  /* ---------- racks view ---------- */
+  var compareSet = new Set();
+  var compareModeActive = false;
+
+  function renderRacks(){
+    if (!selectedRackId && state.racks.length) selectedRackId = state.racks[0].id;
+    var rackList = document.getElementById("rackList");
+    rackList.innerHTML = state.racks.map(function(r){
+      var pct = Math.round(usedU(r.id)/r.totalU*100);
+      var lvl = levelFor(pct);
+      return '<div class="rack-card" role="button" tabindex="0" data-rack="'+r.id+'" aria-pressed="'+(r.id===selectedRackId)+'">' +
+        '<span class="name">'+escapeHtml(r.name)+' <button class="icon-btn" data-edit-rack="'+r.id+'" style="padding:1px 6px;font-size:11px">✎</button></span>' +
+        '<span class="room">'+escapeHtml(r.room)+'</span>' +
+        '<span class="bar"><i class="lvl-'+lvl+'" style="width:'+pct+'%"></i></span>' +
+        '<span class="meta"><span>'+usedU(r.id)+'/'+r.totalU+' U</span><span>'+fmt1(usedKw(r.id))+'/'+fmt1(r.powerCapKw)+' kW</span></span>' +
+        '<label class="compare-check"><input type="checkbox" data-compare="'+r.id+'"'+(compareSet.has(r.id)?" checked":"")+'> Compare</label>' +
+      '</div>';
+    }).join("");
+    rackList.querySelectorAll("[data-rack]").forEach(function(card){
+      card.addEventListener("click", function(){ selectedRackId = card.dataset.rack; renderRacks(); });
+      card.addEventListener("keydown", function(e){
+        if (e.key === "Enter" || e.key === " "){ e.preventDefault(); selectedRackId = card.dataset.rack; renderRacks(); }
+      });
+    });
+    rackList.querySelectorAll("[data-edit-rack]").forEach(function(btn){
+      btn.addEventListener("click", function(e){ e.stopPropagation(); openRackDialog(rackById(btn.dataset.editRack)); });
+    });
+    rackList.querySelectorAll(".compare-check").forEach(function(label){
+      label.addEventListener("click", function(e){ e.stopPropagation(); });
+    });
+    rackList.querySelectorAll("[data-compare]").forEach(function(chk){
+      chk.addEventListener("change", function(e){
+        e.stopPropagation();
+        if (chk.checked) compareSet.add(chk.dataset.compare); else compareSet.delete(chk.dataset.compare);
+        updateCompareTrigger();
+      });
+    });
+    updateCompareTrigger();
+
+    var legend = document.getElementById("typeLegend");
+    legend.innerHTML = Object.keys(TYPES).map(function(k){
+      return '<span class="it"><span class="sw" style="background:'+TYPES[k].color+'"></span>'+TYPES[k].label+'</span>';
+    }).join("");
+
+    var rack = rackById(selectedRackId);
+    document.getElementById("elevTitle").textContent = rack ? rack.name + "  ·  " + rack.room : "—";
+    renderElevation(rack, "elevation");
+    if (compareModeActive) renderCompareStrip();
+  }
+
+  function updateCompareTrigger(){
+    var trigger = document.getElementById("compareTrigger");
+    var count = compareSet.size;
+    trigger.hidden = count === 0;
+    document.getElementById("compareCount").textContent = count + " rack(s) selected to compare" + (count < 2 ? " (select at least 2)" : "");
+    document.getElementById("showCompareBtn").disabled = count < 2;
+  }
+
+  document.getElementById("showCompareBtn").addEventListener("click", function(){
+    if (compareSet.size < 2) return;
+    compareModeActive = true;
+    document.getElementById("singleElevWrap").hidden = true;
+    document.getElementById("compareWrap").hidden = false;
+    renderCompareStrip();
+  });
+  document.getElementById("exitCompareBtn").addEventListener("click", function(){
+    compareModeActive = false;
+    document.getElementById("compareWrap").hidden = true;
+    document.getElementById("singleElevWrap").hidden = false;
+  });
+  document.getElementById("clearCompareBtn").addEventListener("click", function(){
+    compareSet.clear();
+    compareModeActive = false;
+    document.getElementById("compareWrap").hidden = true;
+    document.getElementById("singleElevWrap").hidden = false;
+    renderRacks();
+  });
+
+  function renderCompareStrip(){
+    var strip = document.getElementById("compareStrip");
+    var ids = state.racks.filter(function(r){ return compareSet.has(r.id); }).map(function(r){ return r.id; });
+    strip.innerHTML = ids.map(function(id, i){
+      var r = rackById(id);
+      var pctU = Math.round(usedU(id)/r.totalU*100), lvlU = levelFor(pctU);
+      var pctK = Math.round(usedKw(id)/r.powerCapKw*100), lvlK = levelFor(pctK);
+      var elevId = "cmpElev_" + i;
+      return '<div class="compare-col">' +
+        '<span class="cc-name">'+escapeHtml(r.name)+'</span>' +
+        '<span class="cc-room">'+escapeHtml(r.room)+'</span>' +
+        '<div class="compare-badges">' +
+          '<span class="compare-badge" style="color:var(--status-'+lvlK+')">Used '+fmt1(usedKw(id))+' / Budget '+fmt1(r.powerCapKw)+' kW</span>' +
+          '<span class="compare-badge" style="color:var(--status-'+lvlU+')">'+usedU(id)+' / '+r.totalU+' U</span>' +
+          '<span class="compare-badge">Front '+fmt1(r.tempFront)+'°F</span>' +
+          '<span class="compare-badge">Back '+fmt1(r.tempBack)+'°F</span>' +
+        '</div>' +
+        '<div class="elevation" id="'+elevId+'"></div>' +
+      '</div>';
+    }).join("");
+    ids.forEach(function(id, i){ renderElevation(rackById(id), "cmpElev_" + i); });
+  }
+
+  function computeElevationRows(rack){
+    var assets = assetsForRack(rack.id);
+    var rows = [];
+    var u = rack.totalU;
+    while (u >= 1){
+      var found = assets.find(function(a){ return u >= a.startU && u <= a.startU + a.sizeU - 1; });
+      if (found && u === found.startU + found.sizeU - 1){
+        rows.push({ kind:"asset", asset: found, top: u });
+        u -= found.sizeU;
+      } else if (found) {
+        u -= 1; // safety guard, shouldn't normally hit
+      } else {
+        rows.push({ kind:"empty", u: u });
+        u -= 1;
+      }
+    }
+    return rows;
+  }
+
+  function renderElevation(rack, containerId){
+    var el = document.getElementById(containerId || "elevation");
+    if (!rack){ el.innerHTML = ""; return; }
+    var rows = computeElevationRows(rack);
+    el.innerHTML = rows.map(function(row){
+      if (row.kind === "empty"){
+        return '<div class="u-row empty" data-add-u="'+row.u+'">' +
+          '<span class="u-idx mono">'+row.u+'</span>' +
+          '<span class="plus">+ Add at U'+row.u+'</span>' +
+        '</div>';
+      }
+      var a = row.asset, t = TYPES[a.type], s = STATUS[a.status];
+      return '<div class="u-row" style="height:calc(var(--u-height) * '+a.sizeU+')">' +
+        '<span class="u-idx mono" style="height:100%">'+row.top+'</span>' +
+        '<button class="asset-block" data-edit-asset="'+a.id+'" style="background:'+t.color+'">' +
+          '<span class="status-dot-inline" style="background:'+s.color+'"></span>' +
+          '<span class="an">'+escapeHtml(a.name)+'</span>' +
+          '<span class="au">U'+a.startU+'–U'+(a.startU+a.sizeU-1)+'</span>' +
+        '</button>' +
+      '</div>';
+    }).join("");
+
+    el.querySelectorAll("[data-add-u]").forEach(function(row){
+      row.addEventListener("click", function(){
+        openAssetDialog(null, { rackId: rack.id, startU: Number(row.dataset.addU) });
+      });
+    });
+    el.querySelectorAll("[data-edit-asset]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        openAssetDialog(state.assets.find(function(a){ return a.id === btn.dataset.editAsset; }));
+      });
+    });
+  }
+
+  /* ---------- floor map ---------- */
+  var floorSelectedRackId = null;
+  var floorThresholds = {
+    power: { yellow: null, red: null },
+    space: { yellow: null, red: null },
+    temp:  { yellow: 78, red: 85 }
+  };
+  var METRIC_UNIT = { power: "kW", space: "U", temp: "°F" };
+  var METRIC_LABEL = { power: "Power", space: "Space", temp: "Temp" };
+
+  function metricValue(rack, metric){
+    if (metric === "power") return usedKw(rack.id);
+    if (metric === "temp") return rack.tempFront;
+    return usedU(rack.id);
+  }
+  function metricCap(rack, metric){
+    return metric === "power" ? rack.powerCapKw : rack.totalU;
+  }
+  function ensureFloorThresholds(metric){
+    if (metric === "temp" || floorThresholds[metric].yellow !== null) return;
+    var maxCap = Math.max.apply(null, state.racks.map(function(r){ return metricCap(r, metric); }).concat([1]));
+    floorThresholds[metric].yellow = Math.round(maxCap*0.7*10)/10;
+    floorThresholds[metric].red = Math.round(maxCap*0.9*10)/10;
+  }
+  function levelForValue(value, metric){
+    var th = floorThresholds[metric];
+    if (value >= th.red) return "crit";
+    if (value >= th.yellow) return "warn";
+    return "ok";
+  }
+
+  function renderFloorMap(){
+    var metricSel = document.getElementById("floorMetric");
+    var metric = metricSel.value || "power";
+    ensureFloorThresholds(metric);
+    document.getElementById("floorThreshYellow").value = floorThresholds[metric].yellow;
+    document.getElementById("floorThreshRed").value = floorThresholds[metric].red;
+    var fs = state.floorSize || DEFAULT_FLOOR_SIZE;
+    document.getElementById("hallWidthCm").value = fs.widthCm;
+    document.getElementById("hallLengthCm").value = fs.lengthCm;
+
+    if (!floorSelectedRackId && state.racks.length) floorSelectedRackId = state.racks[0].id;
+
+    document.getElementById("floorMultiLegend").innerHTML = ["power","space","temp"].map(function(m){
+      ensureFloorThresholds(m);
+      var active = m === metric;
+      return '<span class="it" style="'+(active?'color:var(--text);font-weight:600':'')+'">' +
+        '<span class="sw" style="background:linear-gradient(90deg,var(--status-ok),var(--status-warn),var(--status-crit))"></span>' +
+        METRIC_LABEL[m]+' ('+floorThresholds[m].yellow+'–'+floorThresholds[m].red+METRIC_UNIT[m]+')' +
+      '</span>';
+    }).join("");
+
+    var listEl = document.getElementById("floorRackList");
+    listEl.innerHTML = state.racks.map(function(r){
+      var v = metricValue(r, metric), lvl = levelForValue(v, metric);
+      return '<div class="floor-rack-row" role="button" tabindex="0" data-floor-rack="'+r.id+'" aria-pressed="'+(r.id===floorSelectedRackId)+'">' +
+        '<span class="dot" style="background:var(--status-'+lvl+')"></span>' +
+        '<span class="nm">'+escapeHtml(r.name)+'</span>' +
+        '<span class="vl">'+fmt1(v)+' '+METRIC_UNIT[metric]+'</span>' +
+        '<button class="icon-btn" data-edit-rack="'+r.id+'" style="padding:2px 7px">✎</button>' +
+      '</div>';
+    }).join("");
+    listEl.querySelectorAll("[data-floor-rack]").forEach(function(row){
+      row.addEventListener("click", function(){ floorSelectedRackId = row.dataset.floorRack; renderFloorMap(); });
+      row.addEventListener("keydown", function(e){
+        if (e.key === "Enter" || e.key === " "){ e.preventDefault(); floorSelectedRackId = row.dataset.floorRack; renderFloorMap(); }
+      });
+    });
+    listEl.querySelectorAll("[data-edit-rack]").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        openRackDialog(rackById(btn.dataset.editRack));
+      });
+    });
+
+    renderFloorPlan(metric);
+
+    var rack = rackById(floorSelectedRackId);
+    document.getElementById("floorElevTitle").textContent = rack ? rack.name + "  ·  " + rack.room : "—";
+    renderElevation(rack, "floorElevation");
+  }
+
+  function renderFloorPlan(metric){
+    var wrap = document.getElementById("floorPlan");
+    var rs = roomSize();
+    var W = FLOOR_MARGIN*2 + rs.widthCm, H = FLOOR_MARGIN*2 + rs.lengthCm;
+
+    var roomsSvg =
+      '<defs><pattern id="floorTiles" width="'+TILE+'" height="'+TILE+'" patternUnits="userSpaceOnUse">' +
+        '<rect width="'+TILE+'" height="'+TILE+'" fill="none" stroke="var(--border)" stroke-width="1"></rect>' +
+      '</pattern></defs>' +
+      '<rect x="'+FLOOR_MARGIN+'" y="'+FLOOR_MARGIN+'" width="'+rs.widthCm+'" height="'+rs.lengthCm+'" fill="url(#floorTiles)"></rect>' +
+      '<rect x="'+FLOOR_MARGIN+'" y="'+FLOOR_MARGIN+'" width="'+rs.widthCm+'" height="'+rs.lengthCm+'" fill="none" stroke="var(--border-strong)" stroke-width="2" rx="6"></rect>';
+
+    var cabsSvg = state.racks.map(function(r){
+      var w = (r.widthCm||60) - 2, h = (r.depthCm||100) - 2;
+      var x = FLOOR_MARGIN + (r.xCm||0) + 1;
+      var y = FLOOR_MARGIN + (r.yCm||0) + 1;
+      var v = metricValue(r, metric), lvl = levelForValue(v, metric);
+      var selected = r.id === floorSelectedRackId;
+      return '<g class="floor-cab'+(selected?" selected":"")+'" data-floor-cab="'+r.id+'" transform="translate('+x+','+y+')">' +
+        '<rect class="cab-fill" width="'+w+'" height="'+h+'" rx="4" fill="var(--status-'+lvl+')" stroke="var(--border-strong)"></rect>' +
+        '<text x="'+(w/2)+'" y="'+(h/2 - 4)+'" text-anchor="middle" fill="#fff">'+escapeHtml(r.name.replace("Rack ",""))+'</text>' +
+        '<text x="'+(w/2)+'" y="'+(h/2 + 12)+'" text-anchor="middle" fill="#fff" style="font-size:9px;opacity:.9">'+Math.round(v)+METRIC_UNIT[metric]+'</text>' +
+      '</g>';
+    }).join("");
+
+    wrap.innerHTML = '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">' + roomsSvg + cabsSvg + '</svg>';
+    var svgEl = wrap.querySelector("svg");
+    wrap.querySelectorAll("[data-floor-cab]").forEach(function(g){
+      attachFloorDrag(g, svgEl, g.dataset.floorCab);
+    });
+  }
+
+  function svgPoint(svgEl, clientX, clientY){
+    var pt = svgEl.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    return pt.matrixTransform(svgEl.getScreenCTM().inverse());
+  }
+
+  function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh){
+    return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
+  }
+  function overlapsOtherRack(rackId, x, y, w, h){
+    return state.racks.some(function(r){
+      if (r.id === rackId) return false;
+      return rectsOverlap(x, y, w, h, r.xCm||0, r.yCm||0, r.widthCm||60, r.depthCm||100);
+    });
+  }
+
+  function attachFloorDrag(g, svgEl, rackId){
+    var rs = roomSize();
+    var startClient = null, startX = 0, startY = 0, curX = 0, curY = 0, moved = false, w = 1, h = 1;
+    g.addEventListener("pointerdown", function(e){
+      var rack = rackById(rackId);
+      if (!rack) return;
+      startClient = svgPoint(svgEl, e.clientX, e.clientY);
+      startX = rack.xCm||0; startY = rack.yCm||0; curX = startX; curY = startY; moved = false;
+      w = rack.widthCm||60; h = rack.depthCm||100;
+      g.setPointerCapture(e.pointerId);
+      g.classList.add("dragging");
+    });
+    g.addEventListener("pointermove", function(e){
+      if (!startClient) return;
+      var cur = svgPoint(svgEl, e.clientX, e.clientY);
+      var dx = cur.x - startClient.x, dy = cur.y - startClient.y;
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) moved = true;
+      if (!moved) return;
+      curX = Math.max(0, Math.min(rs.widthCm - w, startX + dx));
+      curY = Math.max(0, Math.min(rs.lengthCm - h, startY + dy));
+      var x = FLOOR_MARGIN + curX + 1;
+      var y = FLOOR_MARGIN + curY + 1;
+      g.setAttribute("transform", "translate("+x+","+y+")");
+      g.classList.toggle("overlap-warn", overlapsOtherRack(rackId, curX, curY, w, h));
+    });
+    g.addEventListener("pointerup", function(e){
+      if (!startClient) return;
+      g.releasePointerCapture(e.pointerId);
+      g.classList.remove("dragging");
+      g.classList.remove("overlap-warn");
+      startClient = null;
+      var rack = rackById(rackId);
+      if (!rack) return;
+      if (moved){
+        rack.xCm = Math.round(curX); rack.yCm = Math.round(curY);
+        saveState();
+        logActivity(rack.name + " was moved on the floor map.", "ok");
+        renderFloorMap();
+      } else {
+        floorSelectedRackId = rackId;
+        renderFloorMap();
+      }
+    });
+  }
+
+  document.getElementById("floorMetric").addEventListener("change", renderFloorMap);
+  document.getElementById("floorThreshYellow").addEventListener("input", function(){
+    var metric = document.getElementById("floorMetric").value;
+    floorThresholds[metric].yellow = Number(this.value) || 0;
+    renderFloorMap();
+  });
+  document.getElementById("floorThreshRed").addEventListener("input", function(){
+    var metric = document.getElementById("floorMetric").value;
+    floorThresholds[metric].red = Number(this.value) || 0;
+    renderFloorMap();
+  });
+
+  function clampRacksToGrid(){
+    var rs = roomSize();
+    state.racks.forEach(function(r){
+      r.xCm = Math.max(0, Math.min(rs.widthCm - (r.widthCm||60), r.xCm||0));
+      r.yCm = Math.max(0, Math.min(rs.lengthCm - (r.depthCm||100), r.yCm||0));
+    });
+  }
+  function onHallSizeChange(){
+    var w = Math.max(120, Number(document.getElementById("hallWidthCm").value) || 600);
+    var l = Math.max(120, Number(document.getElementById("hallLengthCm").value) || 360);
+    if (w !== state.floorSize.widthCm || l !== state.floorSize.lengthCm){
+      state.floorSize = { widthCm: w, lengthCm: l };
+      clampRacksToGrid();
+      logActivity("Hall size changed to " + w + "×" + l + " cm.", "ok");
+      saveState();
+      renderFloorMap();
+      if (three.ready){
+        refreshThreeRacks();
+        three.controls.maxDistance = Math.max(11, threeFloorSize() * 2.5);
+      }
+    }
+  }
+  document.getElementById("hallWidthCm").addEventListener("change", onHallSizeChange);
+  document.getElementById("hallLengthCm").addEventListener("change", onHallSizeChange);
+
+  /* ---------- rack add/edit/delete dialog ---------- */
+  var rackDialog = document.getElementById("rackDialog");
+  var rackForm = document.getElementById("rackForm");
+  var r_id = document.getElementById("r_id"), r_name = document.getElementById("r_name"),
+      r_room = document.getElementById("r_room"), r_totalu = document.getElementById("r_totalu"),
+      r_powercap = document.getElementById("r_powercap"), r_width = document.getElementById("r_width"),
+      r_depth = document.getElementById("r_depth");
+  var rackFormError = document.getElementById("rackFormError");
+  var deleteRackBtn = document.getElementById("deleteRackBtn");
+
+  function findFreeArea(w, h){
+    var rs = roomSize(), step = 20;
+    for (var y = 0; y <= rs.lengthCm - h; y += step){
+      for (var x = 0; x <= rs.widthCm - w; x += step){
+        if (!overlapsOtherRack(null, x, y, w, h)) return { xCm: x, yCm: y };
+      }
+    }
+    return { xCm: 0, yCm: 0 };
+  }
+
+  function openRackDialog(rack){
+    rackFormError.textContent = "";
+    document.getElementById("roomOptions").innerHTML = Array.from(new Set(state.racks.map(function(x){ return x.room; })))
+      .map(function(rn){ return '<option value="'+escapeHtml(rn)+'"></option>'; }).join("");
+    if (rack){
+      document.getElementById("rackDialogTitle").textContent = "Edit Rack";
+      deleteRackBtn.style.display = "";
+      r_id.value = rack.id;
+      r_name.value = rack.name;
+      r_room.value = rack.room;
+      r_totalu.value = rack.totalU;
+      r_powercap.value = rack.powerCapKw;
+      r_width.value = rack.widthCm || 60;
+      r_depth.value = rack.depthCm || 100;
+    } else {
+      document.getElementById("rackDialogTitle").textContent = "Add Rack";
+      deleteRackBtn.style.display = "none";
+      r_id.value = "";
+      r_name.value = "";
+      r_room.value = state.racks[0] ? state.racks[0].room : "Hall A";
+      r_totalu.value = 42;
+      r_powercap.value = 8;
+      r_width.value = 60;
+      r_depth.value = 100;
+    }
+    rackDialog.showModal();
+  }
+  document.getElementById("addRackBtn").addEventListener("click", function(){ openRackDialog(null); });
+  document.getElementById("rackDialogClose").addEventListener("click", function(){ rackDialog.close(); });
+  document.getElementById("rackCancelBtn").addEventListener("click", function(){ rackDialog.close(); });
+
+  rackForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var rs = roomSize();
+    var name = r_name.value.trim(), room = r_room.value.trim() || "Hall A";
+    var totalU = Number(r_totalu.value), powerCap = Number(r_powercap.value);
+    var widthCm = Math.round(Number(r_width.value) || 60);
+    var depthCm = Math.round(Number(r_depth.value) || 100);
+    if (!name){ rackFormError.textContent = "Please enter a rack name."; return; }
+    if (totalU < 1){ rackFormError.textContent = "U capacity must be at least 1."; return; }
+    if (powerCap <= 0){ rackFormError.textContent = "Power capacity must be greater than zero."; return; }
+    if (widthCm < 30 || depthCm < 30){ rackFormError.textContent = "Width and depth must be at least 30 cm."; return; }
+    if (widthCm > rs.widthCm || depthCm > rs.lengthCm){ rackFormError.textContent = "Footprint is larger than the hall ("+rs.widthCm+"×"+rs.lengthCm+" cm)."; return; }
+
+    if (r_id.value){
+      var existing = rackById(r_id.value);
+      if (existing.totalU !== totalU){
+        var maxUsed = assetsForRack(existing.id).reduce(function(m,a){ return Math.max(m, a.startU + a.sizeU - 1); }, 0);
+        if (totalU < maxUsed){ rackFormError.textContent = "Assets are installed up to U"+maxUsed+" in this rack; capacity cannot be reduced below that."; return; }
+      }
+      var xCm = Math.max(0, Math.min(existing.xCm||0, rs.widthCm - widthCm)), yCm = Math.max(0, Math.min(existing.yCm||0, rs.lengthCm - depthCm));
+      Object.assign(existing, { name: name, room: room, totalU: totalU, powerCapKw: powerCap, widthCm: widthCm, depthCm: depthCm, xCm: xCm, yCm: yCm });
+      logActivity("Rack "+existing.name+" was edited.", "ok");
+    } else {
+      var spot = findFreeArea(widthCm, depthCm);
+      state.racks.push({
+        id: uid("r"), name: name, room: room, totalU: totalU, powerCapKw: powerCap,
+        tempFront: 72 + Math.random()*5, tempBack: 88 + Math.random()*6,
+        widthCm: widthCm, depthCm: depthCm,
+        xCm: spot.xCm, yCm: spot.yCm
+      });
+      logActivity("Rack "+name+" was added.", "ok");
+    }
+    saveState();
+    rackDialog.close();
+    refreshAllViews();
+  });
+
+  deleteRackBtn.addEventListener("click", function(){
+    var rack = rackById(r_id.value);
+    if (!rack) return;
+    var rackAssets = assetsForRack(rack.id);
+    if (!confirm('Delete "'+rack.name+'"? '+(rackAssets.length ? rackAssets.length+' asset(s) and their network connections will also be deleted.' : ''))) return;
+    var assetIds = rackAssets.map(function(a){ return a.id; });
+    state.assets = state.assets.filter(function(a){ return a.rackId !== rack.id; });
+    state.connections = state.connections.filter(function(c){ return assetIds.indexOf(c.aAsset) === -1 && assetIds.indexOf(c.bAsset) === -1; });
+    state.racks = state.racks.filter(function(r){ return r.id !== rack.id; });
+    compareSet.delete(rack.id);
+    if (selectedRackId === rack.id) selectedRackId = state.racks[0] && state.racks[0].id;
+    if (floorSelectedRackId === rack.id) floorSelectedRackId = state.racks[0] && state.racks[0].id;
+    logActivity("Rack "+rack.name+" was deleted.", "warn");
+    saveState();
+    rackDialog.close();
+    refreshAllViews();
+  });
+
+  /* ---------- capacity view ---------- */
+  function renderCapacity(){
+    var capTable = document.getElementById("capTable");
+    if (!state.racks.length){
+      if (charts.power){ charts.power.destroy(); charts.power = null; }
+      if (charts.space){ charts.space.destroy(); charts.space = null; }
+      capTable.innerHTML = '<p class="table-empty">No racks yet. Add one from the Racks or Floor Map tab, or use "Reset to Sample Data".</p>';
+      return;
+    }
+    var labels = state.racks.map(function(r){ return r.name; });
+    var kwUsed = state.racks.map(function(r){ return Math.round(usedKw(r.id)*10)/10; });
+    var kwCap = state.racks.map(function(r){ return r.powerCapKw; });
+    var uUsed = state.racks.map(function(r){ return usedU(r.id); });
+    var uCap = state.racks.map(function(r){ return r.totalU; });
+
+    // The per-rack table doesn't depend on Chart.js — render it unconditionally
+    // first so it always shows even if the chart library below fails to load.
+    capTable.innerHTML = state.racks.map(function(r){
+      var pctK = Math.round(usedKw(r.id)/r.powerCapKw*100);
+      var pctU = Math.round(usedU(r.id)/r.totalU*100);
+      return '<div class="cap-table-row">' +
+        '<span>'+escapeHtml(r.name)+'</span>' +
+        '<span style="display:flex;flex-direction:column;gap:5px">' +
+          '<span class="bar"><i class="lvl-'+levelFor(pctK)+'" style="width:'+pctK+'%"></i></span>' +
+          '<span class="bar"><i class="lvl-'+levelFor(pctU)+'" style="width:'+pctU+'%"></i></span>' +
+        '</span>' +
+        '<span class="mono" style="text-align:end;font-size:12px">'+pctK+'% ⚡<br>'+pctU+'% ▤</span>' +
+      '</div>';
+    }).join("");
+
+    function showChartFallback(msg){
+      ["powerChart","spaceChart"].forEach(function(id){
+        var canvas = document.getElementById(id);
+        if (canvas && canvas.parentElement) canvas.parentElement.innerHTML = '<p class="table-empty">'+msg+'</p>';
+      });
+    }
+    if (typeof Chart === "undefined"){
+      showChartFallback("Chart library failed to load (network or ad-blocker?). Per-rack numbers are shown below.");
+      return;
+    }
+
+    try {
+      var css = getComputedStyle(document.documentElement);
+      var gridColor = css.getPropertyValue("--border").trim();
+      var textColor = css.getPropertyValue("--text-dim").trim();
+      var accent = css.getPropertyValue("--accent").trim();
+      var faintFill = css.getPropertyValue("--surface-3").trim();
+
+      var commonScales = {
+        x: { ticks: { color: textColor, font: { family: "IBM Plex Mono" } }, grid: { color: gridColor } },
+        y: { beginAtZero: true, ticks: { color: textColor }, grid: { color: gridColor } }
+      };
+
+      if (charts.power) charts.power.destroy();
+      charts.power = new Chart(document.getElementById("powerChart"), {
+        type: "bar",
+        data: { labels: labels, datasets: [
+          { label: "Capacity (kW)", data: kwCap, backgroundColor: faintFill, borderRadius: 4 },
+          { label: "Current Usage (kW)", data: kwUsed, backgroundColor: accent, borderRadius: 4 }
+        ]},
+        options: { responsive:true, maintainAspectRatio:false, scales: commonScales,
+          plugins: { legend: { labels: { color: textColor } } } }
+      });
+      if (charts.space) charts.space.destroy();
+      charts.space = new Chart(document.getElementById("spaceChart"), {
+        type: "bar",
+        data: { labels: labels, datasets: [
+          { label: "Capacity (U)", data: uCap, backgroundColor: faintFill, borderRadius: 4 },
+          { label: "Used (U)", data: uUsed, backgroundColor: accent, borderRadius: 4 }
+        ]},
+        options: { responsive:true, maintainAspectRatio:false, scales: commonScales,
+          plugins: { legend: { labels: { color: textColor } } } }
+      });
+    } catch (err){
+      console.error("Capacity chart render failed:", err);
+      showChartFallback("Could not render this chart. Per-rack numbers are shown below.");
+    }
+  }
+
+  /* ---------- add/edit dialog ---------- */
+  var dialog = document.getElementById("assetDialog");
+  var form = document.getElementById("assetForm");
+  var f_id = document.getElementById("f_id"), f_name = document.getElementById("f_name"),
+      f_type = document.getElementById("f_type"), f_model = document.getElementById("f_model"),
+      f_rack = document.getElementById("f_rack"), f_status = document.getElementById("f_status"),
+      f_startu = document.getElementById("f_startu"), f_sizeu = document.getElementById("f_sizeu"),
+      f_power = document.getElementById("f_power");
+  var formError = document.getElementById("formError");
+  var deleteBtn = document.getElementById("deleteAssetBtn");
+
+  function openAssetDialog(asset, prefill){
+    formError.textContent = "";
+    f_rack.innerHTML = state.racks.map(function(r){ return '<option value="'+r.id+'">'+escapeHtml(r.name)+'</option>'; }).join("");
+    if (asset){
+      document.getElementById("dialogTitle").textContent = "Edit Asset";
+      deleteBtn.style.display = "";
+      f_id.value = asset.id;
+      f_name.value = asset.name;
+      f_type.value = asset.type;
+      f_model.value = asset.model || "";
+      f_rack.value = asset.rackId;
+      f_status.value = asset.status;
+      f_startu.value = asset.startU;
+      f_sizeu.value = asset.sizeU;
+      f_power.value = asset.powerKw;
+      var pduInfoEl = document.getElementById("pduInfo");
+      if (asset.type === "pdu"){
+        var powered = assetsForRack(asset.rackId).filter(function(a){ return a.id !== asset.id && a.type !== "pdu"; });
+        pduInfoEl.hidden = false;
+        pduInfoEl.textContent = powered.length
+          ? "Power trace: in this simplified model, this PDU powers "+powered.length+" other device(s) in this rack: " + powered.map(function(a){ return a.name; }).join(", ")
+          : "Power trace: no other devices are registered in this rack for it to power.";
+      } else {
+        document.getElementById("pduInfo").hidden = true;
+      }
+    } else {
+      document.getElementById("pduInfo").hidden = true;
+      document.getElementById("dialogTitle").textContent = "Add Asset";
+      deleteBtn.style.display = "none";
+      f_id.value = "";
+      f_name.value = "";
+      f_type.value = "server";
+      f_model.value = "";
+      f_rack.value = (prefill && prefill.rackId) || selectedRackId || (state.racks[0] && state.racks[0].id) || "";
+      f_status.value = "active";
+      f_startu.value = (prefill && prefill.startU) || 1;
+      f_sizeu.value = 1;
+      f_power.value = 0.5;
+    }
+    dialog.showModal();
+  }
+  document.getElementById("dialogClose").addEventListener("click", function(){ dialog.close(); });
+  document.getElementById("cancelBtn").addEventListener("click", function(){ dialog.close(); });
+
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    var rack = rackById(f_rack.value);
+    var startU = Number(f_startu.value), sizeU = Number(f_sizeu.value), powerKw = Number(f_power.value);
+    if (!f_name.value.trim()){ formError.textContent = "Please enter a device name."; return; }
+    if (!rack){ formError.textContent = "Selected rack is invalid."; return; }
+    if (startU < 1 || sizeU < 1 || startU + sizeU - 1 > rack.totalU){
+      formError.textContent = "U position is outside this rack's range ("+rack.totalU+"U)."; return;
+    }
+    var overlap = state.assets.some(function(a){
+      if (a.rackId !== rack.id) return false;
+      if (a.id === f_id.value) return false;
+      var aEnd = a.startU + a.sizeU - 1, newEnd = startU + sizeU - 1;
+      return startU <= aEnd && a.startU <= newEnd;
+    });
+    if (overlap){ formError.textContent = "This U range overlaps another asset in the same rack."; return; }
+
+    if (f_id.value){
+      var existing = state.assets.find(function(a){ return a.id === f_id.value; });
+      Object.assign(existing, {
+        name: f_name.value.trim(), type: f_type.value, model: f_model.value.trim(),
+        rackId: rack.id, status: f_status.value, startU: startU, sizeU: sizeU, powerKw: powerKw
+      });
+      logActivity(existing.name + " was edited.", "ok");
+    } else {
+      state.assets.push({
+        id: uid("a"), name: f_name.value.trim(), type: f_type.value, model: f_model.value.trim(),
+        rackId: rack.id, status: f_status.value, startU: startU, sizeU: sizeU, powerKw: powerKw
+      });
+      logActivity(f_name.value.trim() + " was added to " + rack.name + ".", "ok");
+    }
+    saveState();
+    dialog.close();
+    refreshAllViews();
+  });
+
+  deleteBtn.addEventListener("click", function(){
+    var a = state.assets.find(function(x){ return x.id === f_id.value; });
+    if (!a) return;
+    if (!confirm('Delete "'+a.name+'"?')) return;
+    state.assets = state.assets.filter(function(x){ return x.id !== a.id; });
+    var removedConns = state.connections.filter(function(c){ return c.aAsset === a.id || c.bAsset === a.id; }).length;
+    state.connections = state.connections.filter(function(c){ return c.aAsset !== a.id && c.bAsset !== a.id; });
+    logActivity(a.name + " was deleted." + (removedConns ? " ("+removedConns+" network connection(s) also removed)" : ""), "warn");
+    saveState();
+    dialog.close();
+    refreshAllViews();
+  });
+
+  /* ---------- network documentation ---------- */
+  var MEDIA = {
+    cat6:     { label: "Copper Cat6",        color: "#3B7DD8" },
+    fiber_sm: { label: "Single-mode fiber",      color: "#D9B429" },
+    fiber_mm: { label: "Multi-mode fiber",     color: "#2FB6A9" }
+  };
+  var CONN_STATUS = {
+    active: { label: "Active" },
+    decommissioned: { label: "Decommissioned" }
+  };
+  var netSelectedId = null;
+
+  function connLabel(assetId){ var a = state.assets.find(function(x){ return x.id === assetId; }); return a ? a.name : "—"; }
+  function connRack(assetId){
+    var a = state.assets.find(function(x){ return x.id === assetId; });
+    if (!a) return "—";
+    var r = rackById(a.rackId);
+    return r ? r.name : "—";
+  }
+  function connectionsInvolving(assetId){
+    return state.connections.filter(function(c){ return c.aAsset === assetId || c.bAsset === assetId; });
+  }
+  function otherEnd(conn, assetId){
+    return conn.aAsset === assetId
+      ? { assetId: conn.bAsset, port: conn.bPort, myPort: conn.aPort }
+      : { assetId: conn.aAsset, port: conn.aPort, myPort: conn.bPort };
+  }
+
+  function renderNetworkDocs(){
+    document.getElementById("mediaLegend").innerHTML = Object.keys(MEDIA).map(function(k){
+      return '<span class="it"><span class="sw" style="background:'+MEDIA[k].color+'"></span>'+MEDIA[k].label+'</span>';
+    }).join("");
+    renderConnTable();
+    renderNetDiagram();
+    updateNetInfoPanel();
+  }
+
+  function renderConnTable(){
+    var q = document.getElementById("connSearch").value.trim().toLowerCase();
+    var mediaFilter = document.getElementById("connMediaFilter").value;
+    var list = state.connections.filter(function(c){
+      if (mediaFilter && c.media !== mediaFilter) return false;
+      if (!q) return true;
+      var hay = (connLabel(c.aAsset)+" "+connRack(c.aAsset)+" "+c.aPort+" "+connLabel(c.bAsset)+" "+connRack(c.bAsset)+" "+c.bPort).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+    var tbody = document.getElementById("connTbody");
+    var emptyEl = document.getElementById("connEmpty");
+    if (!list.length){ tbody.innerHTML = ""; emptyEl.hidden = false; return; }
+    emptyEl.hidden = true;
+    tbody.innerHTML = list.map(function(c){
+      var m = MEDIA[c.media];
+      var statusTxt = CONN_STATUS[c.status] ? CONN_STATUS[c.status].label : c.status;
+      return "<tr>" +
+        "<td>"+escapeHtml(connLabel(c.aAsset))+"</td>" +
+        "<td class='mono'>"+escapeHtml(connRack(c.aAsset))+"</td>" +
+        "<td class='mono'>"+escapeHtml(c.aPort||"—")+"</td>" +
+        "<td>"+escapeHtml(connLabel(c.bAsset))+"</td>" +
+        "<td class='mono'>"+escapeHtml(connRack(c.bAsset))+"</td>" +
+        "<td class='mono'>"+escapeHtml(c.bPort||"—")+"</td>" +
+        "<td><span class='media-chip'><span class='sw' style='background:"+m.color+"'></span>"+m.label+"</span></td>" +
+        "<td>"+statusTxt+"</td>" +
+        "<td><div class='row-actions'><button class='icon-btn' data-edit-conn='"+c.id+"'>Edit</button></div></td>" +
+      "</tr>";
+    }).join("");
+  }
+  document.getElementById("connTbody").addEventListener("click", function(e){
+    var btn = e.target.closest("button[data-edit-conn]");
+    if (btn) openConnDialog(state.connections.find(function(c){ return c.id === btn.dataset.editConn; }));
+  });
+  ["connSearch","connMediaFilter"].forEach(function(id){
+    document.getElementById(id).addEventListener("input", renderConnTable);
+    document.getElementById(id).addEventListener("change", renderConnTable);
+  });
+  document.getElementById("addConnBtn").addEventListener("click", function(){ openConnDialog(null); });
+
+  function renderNetDiagram(){
+    var wrap = document.getElementById("netDiagram");
+    var nodeIds = [];
+    state.connections.forEach(function(c){
+      if (nodeIds.indexOf(c.aAsset) === -1) nodeIds.push(c.aAsset);
+      if (nodeIds.indexOf(c.bAsset) === -1) nodeIds.push(c.bAsset);
+    });
+    if (!nodeIds.length){
+      wrap.innerHTML = '<p class="net-info-empty" style="padding:20px">No connections recorded yet.</p>';
+      return;
+    }
+    var W = 640, H = 420, cx = W/2, cy = H/2, r = Math.min(W,H)/2 - 60;
+    var positions = {};
+    nodeIds.forEach(function(id, i){
+      var angle = (2*Math.PI*i)/nodeIds.length - Math.PI/2;
+      positions[id] = { x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle) };
+    });
+
+    var edgesSvg = state.connections.map(function(c){
+      var pa = positions[c.aAsset], pb = positions[c.bAsset];
+      if (!pa || !pb) return "";
+      var m = MEDIA[c.media];
+      var dashed = c.status === "decommissioned" ? ' stroke-dasharray="4 4"' : "";
+      var involved = netSelectedId && (c.aAsset === netSelectedId || c.bAsset === netSelectedId);
+      var opacity = netSelectedId ? (involved ? 1 : 0.18) : 0.85;
+      var width = involved ? 3 : 1.6;
+      return '<line class="net-edge" x1="'+pa.x+'" y1="'+pa.y+'" x2="'+pb.x+'" y2="'+pb.y+'" ' +
+        'stroke="'+m.color+'" stroke-width="'+width+'" opacity="'+opacity+'"'+dashed+'></line>';
+    }).join("");
+
+    var nodesSvg = nodeIds.map(function(id){
+      var p = positions[id];
+      var asset = state.assets.find(function(a){ return a.id === id; });
+      var t = asset ? TYPES[asset.type] : TYPES.server;
+      var selected = id === netSelectedId;
+      var label = asset ? asset.name : "?";
+      var rackLabel = connRack(id);
+      return '<g class="net-node'+(selected?" selected":"")+'" data-node-id="'+id+'" transform="translate('+p.x+','+p.y+')">' +
+        '<circle class="halo" r="16" fill="none" stroke="var(--accent)" stroke-width="2.5"></circle>' +
+        '<circle r="10" fill="'+t.color+'"></circle>' +
+        '<text text-anchor="middle" y="-16">'+escapeHtml(label)+'</text>' +
+        '<text text-anchor="middle" y="24" class="rack-lbl">'+escapeHtml(rackLabel)+'</text>' +
+      '</g>';
+    }).join("");
+
+    wrap.innerHTML = '<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">' + edgesSvg + nodesSvg + '</svg>';
+    wrap.querySelectorAll("[data-node-id]").forEach(function(g){
+      g.addEventListener("click", function(){
+        netSelectedId = (netSelectedId === g.dataset.nodeId) ? null : g.dataset.nodeId;
+        renderNetDiagram();
+        updateNetInfoPanel();
+      });
+    });
+  }
+
+  function computeDependents(nodeId){
+    // graph without nodeId
+    var adj = {};
+    state.connections.forEach(function(c){
+      if (c.status !== "active") return;
+      if (c.aAsset === nodeId || c.bAsset === nodeId) return;
+      (adj[c.aAsset] = adj[c.aAsset] || []).push(c.bAsset);
+      (adj[c.bAsset] = adj[c.bAsset] || []).push(c.aAsset);
+    });
+    var directNeighbors = state.connections
+      .filter(function(c){ return c.status === "active" && (c.aAsset === nodeId || c.bAsset === nodeId); })
+      .map(function(c){ return c.aAsset === nodeId ? c.bAsset : c.aAsset; });
+
+    function reachableHasNetworkCore(start){
+      var seen = {}; seen[start] = true;
+      var queue = [start];
+      var hasCore = state.assets.find(function(a){ return a.id === start; }) && assetType(start) === "network";
+      while (queue.length){
+        var cur = queue.pop();
+        (adj[cur] || []).forEach(function(n){
+          if (seen[n]) return;
+          seen[n] = true;
+          if (assetType(n) === "network") hasCore = true;
+          queue.push(n);
+        });
+      }
+      return hasCore;
+    }
+    function assetType(id){ var a = state.assets.find(function(x){ return x.id === id; }); return a ? a.type : null; }
+
+    var dependents = [];
+    directNeighbors.forEach(function(nb){
+      if (assetType(nb) === "network") return; // another switch usually has its own alternate uplinks in this simplified model
+      if (!reachableHasNetworkCore(nb)){
+        if (dependents.indexOf(nb) === -1) dependents.push(nb);
+      }
+    });
+    return dependents;
+  }
+
+  function countSpofRisks(){
+    var nodeIds = [];
+    state.connections.forEach(function(c){
+      if (nodeIds.indexOf(c.aAsset) === -1) nodeIds.push(c.aAsset);
+      if (nodeIds.indexOf(c.bAsset) === -1) nodeIds.push(c.bAsset);
+    });
+    return nodeIds.filter(function(id){ return computeDependents(id).length > 0; }).length;
+  }
+
+  function updateNetInfoPanel(){
+    var panel = document.getElementById("netInfoPanel");
+    if (!netSelectedId){
+      panel.innerHTML = '<p class="net-info-empty">To see direct connections and single point of failure (SPOF) analysis for a device, click it in the diagram.</p>';
+      return;
+    }
+    var asset = state.assets.find(function(a){ return a.id === netSelectedId; });
+    if (!asset){ netSelectedId = null; panel.innerHTML = ""; return; }
+    var conns = connectionsInvolving(asset.id);
+    var connsHtml = conns.map(function(c){
+      var other = otherEnd(c, asset.id);
+      var m = MEDIA[c.media];
+      return '<div class="net-conn-item">' +
+        '<span>'+escapeHtml(connLabel(other.assetId))+' <span class="ports">('+escapeHtml(connRack(other.assetId))+')</span></span>' +
+        '<span class="ports">'+escapeHtml(other.myPort||"—")+' ⇄ '+escapeHtml(other.port||"—")+' · '+m.label+'</span>' +
+      '</div>';
+    }).join("") || '<p class="net-info-empty">No connections recorded.</p>';
+
+    var dependents = computeDependents(asset.id);
+    var spofHtml = dependents.length
+      ? '<span class="spof-warn">⚠ Single point of failure: removing this device disconnects '+dependents.length+' device(s) from the core network</span>' +
+        '<div class="spof-list">'+dependents.map(function(d){ return '<span>· '+escapeHtml(connLabel(d))+' ('+escapeHtml(connRack(d))+')</span>'; }).join("")+'</div>'
+      : '<span class="spof-ok">✓ Not a single point of failure — no dependent device without an alternate path was found.</span>';
+
+    panel.innerHTML =
+      '<div><h3>'+escapeHtml(asset.name)+'</h3><div class="tile-room">'+TYPES[asset.type].label+' · '+escapeHtml(connRack(asset.id))+'</div></div>' +
+      '<div><h2 class="section-title" style="margin-bottom:6px">Direct Connections</h2>'+connsHtml+'</div>' +
+      '<div><h2 class="section-title" style="margin-bottom:6px">Single Point of Failure Analysis</h2>'+spofHtml+'</div>';
+  }
+
+  /* ---------- connection add/edit dialog ---------- */
+  var connDialog = document.getElementById("connDialog");
+  var connForm = document.getElementById("connForm");
+  var c_id = document.getElementById("c_id"), c_assetA = document.getElementById("c_assetA"),
+      c_portA = document.getElementById("c_portA"), c_assetB = document.getElementById("c_assetB"),
+      c_portB = document.getElementById("c_portB"), c_media = document.getElementById("c_media"),
+      c_status = document.getElementById("c_status");
+  var connFormError = document.getElementById("connFormError");
+  var deleteConnBtn = document.getElementById("deleteConnBtn");
+
+  function assetOptionsHtml(){
+    return state.assets.map(function(a){ return '<option value="'+a.id+'">'+escapeHtml(a.name)+' ('+TYPES[a.type].label+')</option>'; }).join("");
+  }
+  function openConnDialog(conn){
+    connFormError.textContent = "";
+    c_assetA.innerHTML = assetOptionsHtml();
+    c_assetB.innerHTML = assetOptionsHtml();
+    if (conn){
+      document.getElementById("connDialogTitle").textContent = "Edit Connection";
+      deleteConnBtn.style.display = "";
+      c_id.value = conn.id;
+      c_assetA.value = conn.aAsset; c_portA.value = conn.aPort || "";
+      c_assetB.value = conn.bAsset; c_portB.value = conn.bPort || "";
+      c_media.value = conn.media; c_status.value = conn.status;
+    } else {
+      document.getElementById("connDialogTitle").textContent = "Add Connection";
+      deleteConnBtn.style.display = "none";
+      c_id.value = "";
+      c_portA.value = ""; c_portB.value = "";
+      c_media.value = "cat6"; c_status.value = "active";
+    }
+    connDialog.showModal();
+  }
+  document.getElementById("connDialogClose").addEventListener("click", function(){ connDialog.close(); });
+  document.getElementById("connCancelBtn").addEventListener("click", function(){ connDialog.close(); });
+
+  connForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    if (!state.assets.length){ connFormError.textContent = "At least one asset must exist first."; return; }
+    if (c_assetA.value === c_assetB.value){ connFormError.textContent = "Device A and B cannot be the same."; return; }
+    var dup = state.connections.some(function(c){
+      if (c.id === c_id.value) return false;
+      var sameOrder = c.aAsset === c_assetA.value && c.aPort === c_portA.value && c.bAsset === c_assetB.value && c.bPort === c_portB.value;
+      var revOrder  = c.aAsset === c_assetB.value && c.aPort === c_portB.value && c.bAsset === c_assetA.value && c.bPort === c_portA.value;
+      return sameOrder || revOrder;
+    });
+    if (dup){ connFormError.textContent = "These two ports are already connected."; return; }
+
+    if (c_id.value){
+      var existing = state.connections.find(function(c){ return c.id === c_id.value; });
+      Object.assign(existing, {
+        aAsset: c_assetA.value, aPort: c_portA.value.trim(),
+        bAsset: c_assetB.value, bPort: c_portB.value.trim(),
+        media: c_media.value, status: c_status.value
+      });
+      logActivity("Connection "+connLabel(existing.aAsset)+" ⇄ "+connLabel(existing.bAsset)+" was edited.", "ok");
+    } else {
+      state.connections.push({
+        id: uid("c"), aAsset: c_assetA.value, aPort: c_portA.value.trim(),
+        bAsset: c_assetB.value, bPort: c_portB.value.trim(),
+        media: c_media.value, status: c_status.value
+      });
+      logActivity("New connection between "+connLabel(c_assetA.value)+" and "+connLabel(c_assetB.value)+" was created.", "ok");
+    }
+    saveState();
+    connDialog.close();
+    renderNetworkDocs();
+  });
+  deleteConnBtn.addEventListener("click", function(){
+    var c = state.connections.find(function(x){ return x.id === c_id.value; });
+    if (!c) return;
+    if (!confirm("Delete this connection?")) return;
+    state.connections = state.connections.filter(function(x){ return x.id !== c.id; });
+    logActivity("Connection "+connLabel(c.aAsset)+" ⇄ "+connLabel(c.bAsset)+" was deleted.", "warn");
+    saveState();
+    connDialog.close();
+    renderNetworkDocs();
+  });
+
+  /* ---------- 3D room view ---------- */
+  var three = {
+    ready: false, renderer: null, scene: null, camera: null, controls: null,
+    hitBoxes: [], rackGroups: {}, ring: null, animId: null, raycaster: null,
+    resizeObs: null, container: null, selectedId: null, cableGroup: null
+  };
+  var THREE_CM_SCALE = 0.5 / 60; // 3D units per real-world cm — used for BOTH position and box size so 3D matches the Floor Map exactly
+  function roomToWorld(xCm, yCm, wCm, dCm){
+    var rs = roomSize();
+    return {
+      x: (xCm + wCm/2 - rs.widthCm/2) * THREE_CM_SCALE,
+      z: (yCm + dCm/2 - rs.lengthCm/2) * THREE_CM_SCALE
+    };
+  }
+
+  function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function makeTextSprite(text, opts){
+    opts = opts || {};
+    var scale = opts.scale || 1;
+    var canvas = document.createElement("canvas");
+    canvas.width = 512; canvas.height = 128;
+    var ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.font = "600 46px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = opts.bg || "rgba(10,14,18,0.72)";
+    var w = ctx.measureText(text).width + 46;
+    var h = 66;
+    var x = canvas.width/2 - w/2, y = canvas.height/2 - h/2;
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x,y,w,h,14); ctx.fill(); }
+    else { ctx.fillRect(x,y,w,h); }
+    ctx.fillStyle = opts.color || "#ffffff";
+    ctx.fillText(text, canvas.width/2, canvas.height/2 + 2);
+    var tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    var sprite = new THREE.Sprite(mat);
+    sprite.scale.set(1.7*scale, 1.7*scale*(canvas.height/canvas.width), 1);
+    sprite.renderOrder = 10;
+    return sprite;
+  }
+
+  function threeFloorSize(){
+    var rs = roomSize();
+    return Math.max(rs.widthCm, rs.lengthCm) * THREE_CM_SCALE + 1.5;
+  }
+
+  function threeHomeCamera(){
+    var fSize = threeFloorSize();
+    return { x: fSize*0.53, y: fSize*0.42, z: fSize*0.69 };
+  }
+
+  function initThreeScene(){
+    if (three.ready) return;
+    var wrap = document.getElementById("threeCanvasWrap");
+    if (typeof THREE === "undefined" || typeof THREE.OrbitControls === "undefined"){
+      wrap.innerHTML = '<p class="table-empty">3D library failed to load (network or ad-blocker?). Try the Racks or Floor Map tab instead.</p>';
+      return;
+    }
+    three.container = wrap;
+    try {
+      var scene = new THREE.Scene();
+      var camera = new THREE.PerspectiveCamera(42, wrap.clientWidth/Math.max(wrap.clientHeight,1), 0.1, 200);
+      var homeCam = threeHomeCamera();
+      camera.position.set(homeCam.x, homeCam.y, homeCam.z);
+
+      var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+      wrap.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+      var dir = new THREE.DirectionalLight(0xffffff, 0.65);
+      dir.position.set(4, 6, 3);
+      scene.add(dir);
+
+      var controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.minDistance = 0.6;
+      controls.maxDistance = Math.max(11, threeFloorSize() * 2.5);
+      controls.maxPolarAngle = Math.PI/2.05;
+      controls.target.set(0, 0.55, 0);
+      controls.update();
+
+      var floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(threeFloorSize(), threeFloorSize()),
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(cssVar("--surface-2") || "#eef2f5"), roughness: 1 })
+      );
+      floor.rotation.x = -Math.PI/2;
+      scene.add(floor);
+
+      var grid = new THREE.GridHelper(threeFloorSize(), 20, new THREE.Color(cssVar("--border-strong")), new THREE.Color(cssVar("--border")));
+      grid.position.y = 0.002;
+      scene.add(grid);
+
+      var cableGroup = new THREE.Group();
+      scene.add(cableGroup);
+      three.cableGroup = cableGroup;
+
+      three.floorMesh = floor; three.gridHelper = grid;
+      three.renderer = renderer; three.scene = scene; three.camera = camera; three.controls = controls;
+      three.raycaster = new THREE.Raycaster();
+      three.ready = true;
+
+      renderer.domElement.addEventListener("click", onThreeClick);
+
+      if (window.ResizeObserver){
+        three.resizeObs = new ResizeObserver(function(){ onThreeResize(); });
+        three.resizeObs.observe(wrap);
+      } else {
+        window.addEventListener("resize", onThreeResize);
+      }
+
+      document.getElementById("threeResetView").addEventListener("click", function(){
+        var home = threeHomeCamera();
+        camera.position.set(home.x, home.y, home.z);
+        controls.target.set(0, 0.55, 0);
+        controls.update();
+      });
+      document.getElementById("threeCablesToggle").addEventListener("change", function(e){
+        if (three.cableGroup) three.cableGroup.visible = e.target.checked;
+      });
+
+      buildThreeLegend();
+      buildThreeTypeLegend();
+    } catch (err){
+      console.error("3D view init failed:", err);
+      three.ready = false;
+      wrap.innerHTML = '<p class="table-empty">Could not start the 3D view (WebGL may be unavailable on this device/browser). Try the Racks or Floor Map tab instead.</p>';
+    }
+  }
+
+  function buildThreeLegend(){
+    var legend = document.getElementById("threeLegend");
+    legend.innerHTML =
+      '<span class="it"><span class="sw" style="background:var(--status-ok)"></span>Under 70% used</span>' +
+      '<span class="it"><span class="sw" style="background:var(--status-warn)"></span>70–90%</span>' +
+      '<span class="it"><span class="sw" style="background:var(--status-crit)"></span>Over 90%</span>' +
+      '<span class="it"><span class="sw" style="background:var(--surface-3);border:1px solid var(--border-strong)"></span>Empty Space</span>';
+  }
+
+  function buildThreeTypeLegend(){
+    var legend = document.getElementById("threeTypeLegend");
+    var typeHtml = Object.keys(TYPES).map(function(k){
+      return '<span class="it"><span class="sw" style="background:'+TYPES[k].color+'"></span>'+TYPES[k].label+'</span>';
+    }).join("");
+    var mediaHtml = Object.keys(MEDIA).map(function(k){
+      return '<span class="it"><span class="sw" style="background:'+MEDIA[k].color+';width:14px;height:3px;border-radius:2px"></span>'+MEDIA[k].label+'</span>';
+    }).join("");
+    legend.innerHTML = typeHtml + mediaHtml;
+  }
+
+  function disposeObject3D(obj){
+    obj.traverse(function(node){
+      if (node.geometry) node.geometry.dispose();
+      if (node.material){
+        var mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(function(m){
+          if (m.map) m.map.dispose();
+          m.dispose();
+        });
+      }
+    });
+  }
+
+  function clearRackGroups(){
+    Object.keys(three.rackGroups).forEach(function(id){
+      var group = three.rackGroups[id];
+      three.scene.remove(group);
+      disposeObject3D(group);
+    });
+    three.rackGroups = {};
+    three.hitBoxes = [];
+  }
+
+  function refreshThreeRacks(){
+    if (!three.ready) return;
+    clearRackGroups();
+    var uScale = 0.03;
+
+    var fSize = threeFloorSize();
+    if (three.floorMesh){
+      three.floorMesh.geometry.dispose();
+      three.floorMesh.geometry = new THREE.PlaneGeometry(fSize, fSize);
+    }
+    if (three.gridHelper){
+      three.scene.remove(three.gridHelper);
+      disposeObject3D(three.gridHelper);
+      var freshGrid = new THREE.GridHelper(fSize, 20, new THREE.Color(cssVar("--border-strong")), new THREE.Color(cssVar("--border")));
+      freshGrid.position.y = 0.002;
+      three.scene.add(freshGrid);
+      three.gridHelper = freshGrid;
+    }
+
+    state.racks.forEach(function(r){
+      var p = roomToWorld(r.xCm||0, r.yCm||0, r.widthCm||60, r.depthCm||100);
+      var totalH = r.totalU * uScale;
+      var pct = Math.round(usedU(r.id)/r.totalU*100);
+      var footW = (r.widthCm||60) * THREE_CM_SCALE, footD = (r.depthCm||100) * THREE_CM_SCALE;
+
+      var group = new THREE.Group();
+      group.position.set(p.x, 0, p.z);
+
+      var rows = computeElevationRows(r);
+      var i = 0;
+      while (i < rows.length){
+        if (rows[i].kind === "asset"){
+          var a = rows[i].asset;
+          var segH = Math.max(a.sizeU * uScale, 0.004);
+          var segY = (a.startU - 1) * uScale;
+          var mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(footW, segH, footD),
+            new THREE.MeshStandardMaterial({ color: new THREE.Color(TYPES[a.type].color), roughness: 0.55 })
+          );
+          mesh.position.y = segY + segH/2;
+          group.add(mesh);
+          var statusColor = STATUS[a.status] ? STATUS[a.status].color : "var(--border-strong)";
+          var assetEdges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(footW, segH, footD)),
+            new THREE.LineBasicMaterial({ color: new THREE.Color(cssVar(statusColor.replace(/^var\((.*)\)$/, "$1")) || "#000") })
+          );
+          assetEdges.position.y = segY + segH/2;
+          group.add(assetEdges);
+          i++;
+        } else {
+          var startIdx = i;
+          while (i < rows.length && rows[i].kind === "empty") i++;
+          var uTop = rows[startIdx].u, uBottom = rows[i-1].u;
+          var segH2 = (uTop - uBottom + 1) * uScale;
+          var segY2 = (uBottom - 1) * uScale;
+          var emptyMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(footW - 0.04, segH2, footD - 0.04),
+            new THREE.MeshStandardMaterial({ color: new THREE.Color(cssVar("--surface-3")), roughness: 0.4, transparent: true, opacity: 0.35 })
+          );
+          emptyMesh.position.y = segY2 + segH2/2;
+          group.add(emptyMesh);
+        }
+      }
+
+      var outline = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(footW + 0.02, totalH, footD + 0.02)),
+        new THREE.LineBasicMaterial({ color: new THREE.Color(cssVar("--border-strong")) })
+      );
+      outline.position.y = totalH/2;
+      group.add(outline);
+
+      var label = makeTextSprite(r.name + "  " + pct + "%");
+      label.position.y = totalH + 0.22;
+      group.add(label);
+
+      var hitBox = new THREE.Mesh(
+        new THREE.BoxGeometry(footW + 0.1, totalH + 0.001, footD + 0.1),
+        new THREE.MeshBasicMaterial({ visible: false })
+      );
+      hitBox.position.y = totalH/2;
+      hitBox.userData.rackId = r.id;
+      group.add(hitBox);
+      three.hitBoxes.push(hitBox);
+
+      three.scene.add(group);
+      three.rackGroups[r.id] = group;
+    });
+
+    updateThreeSelectionRing();
+    updateThreeInfoPanel();
+    refreshThreeCables();
+  }
+
+  function assetWorldAnchor(assetId){
+    var asset = state.assets.find(function(a){ return a.id === assetId; });
+    if (!asset) return null;
+    var rack = rackById(asset.rackId);
+    if (!rack) return null;
+    var group = three.rackGroups[rack.id];
+    if (!group) return null;
+    var uScale = 0.03;
+    var localY = (asset.startU - 1 + asset.sizeU/2) * uScale;
+    var footW = (rack.widthCm||60) * THREE_CM_SCALE, footD = (rack.depthCm||100) * THREE_CM_SCALE;
+    return {
+      x: group.position.x + footW/2,
+      y: localY,
+      z: group.position.z + footD/2
+    };
+  }
+
+  function refreshThreeCables(){
+    if (!three.cableGroup) return;
+    while (three.cableGroup.children.length){
+      var child = three.cableGroup.children.pop();
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    }
+    state.connections.forEach(function(c){
+      var pa = assetWorldAnchor(c.aAsset), pb = assetWorldAnchor(c.bAsset);
+      if (!pa || !pb) return;
+      var m = MEDIA[c.media] || MEDIA.cat6;
+      var geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(pa.x, pa.y, pa.z),
+        new THREE.Vector3(pb.x, pb.y, pb.z)
+      ]);
+      var line;
+      if (c.status === "decommissioned"){
+        var dashMat = new THREE.LineDashedMaterial({ color: new THREE.Color(m.color), dashSize: 0.05, gapSize: 0.04, transparent: true, opacity: 0.55 });
+        line = new THREE.Line(geometry, dashMat);
+        line.computeLineDistances();
+      } else {
+        line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: new THREE.Color(m.color) }));
+      }
+      three.cableGroup.add(line);
+    });
+  }
+
+  function updateThreeSelectionRing(){
+    if (three.ring){ three.scene.remove(three.ring); disposeObject3D(three.ring); three.ring = null; }
+    if (!three.selectedId) return;
+    var group = three.rackGroups[three.selectedId];
+    if (!group) return;
+    var ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.55, 0.66, 32),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(cssVar("--accent")), transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI/2;
+    ring.position.set(group.position.x, 0.006, group.position.z);
+    three.ring = ring;
+    three.scene.add(ring);
+  }
+
+  function onThreeClick(ev){
+    if (!three.ready) return;
+    var rect = three.renderer.domElement.getBoundingClientRect();
+    var mouse = new THREE.Vector2(
+      ((ev.clientX - rect.left)/rect.width)*2 - 1,
+      -((ev.clientY - rect.top)/rect.height)*2 + 1
+    );
+    three.raycaster.setFromCamera(mouse, three.camera);
+    var hits = three.raycaster.intersectObjects(three.hitBoxes);
+    if (hits.length){
+      three.selectedId = hits[0].object.userData.rackId;
+      selectedRackId = three.selectedId;
+      updateThreeSelectionRing();
+      updateThreeInfoPanel();
+    }
+  }
+
+  function updateThreeInfoPanel(){
+    var panel = document.getElementById("threeInfoPanel");
+    var rack = rackById(three.selectedId);
+    if (!rack){
+      panel.innerHTML = '<p class="three-info-empty">Click a rack in the 3D view to see its details.</p>';
+      return;
+    }
+    var pctU = Math.round(usedU(rack.id)/rack.totalU*100);
+    var pctK = Math.round(usedKw(rack.id)/rack.powerCapKw*100);
+    panel.innerHTML =
+      '<div><h3>'+escapeHtml(rack.name)+'</h3><div class="room">'+escapeHtml(rack.room)+'</div></div>' +
+      '<div class="three-info-row"><span class="lbl"><span>Space</span><span class="mono">'+usedU(rack.id)+'/'+rack.totalU+' U</span></span>' +
+        '<span class="bar"><i class="lvl-'+levelFor(pctU)+'" style="width:'+pctU+'%"></i></span></div>' +
+      '<div class="three-info-row"><span class="lbl"><span>Power</span><span class="mono">'+fmt1(usedKw(rack.id))+'/'+fmt1(rack.powerCapKw)+' kW</span></span>' +
+        '<span class="bar"><i class="lvl-'+levelFor(pctK)+'" style="width:'+pctK+'%"></i></span></div>' +
+      '<button class="btn secondary" id="threeGotoRack" type="button">View details in Racks</button>';
+    var gotoBtn = document.getElementById("threeGotoRack");
+    if (gotoBtn) gotoBtn.addEventListener("click", function(){ setView("racks"); });
+  }
+
+  function onThreeResize(){
+    if (!three.ready || !three.container) return;
+    var w = three.container.clientWidth, h = three.container.clientHeight;
+    if (!w || !h) return;
+    three.camera.aspect = w/h;
+    three.camera.updateProjectionMatrix();
+    three.renderer.setSize(w, h);
+  }
+
+  function startThreeLoop(){
+    if (!three.ready || three.animId) return;
+    function loop(){
+      three.animId = requestAnimationFrame(loop);
+      three.controls.update();
+      three.renderer.render(three.scene, three.camera);
+    }
+    loop();
+  }
+  function stopThreeLoop(){
+    if (three.animId){ cancelAnimationFrame(three.animId); three.animId = null; }
+  }
+
+  /* ---------- theme toggle ---------- */
+  var themeBtn = document.getElementById("themeToggle");
+  var themeLabels = { auto: "Theme: Auto", light: "Theme: Light", dark: "Theme: Dark" };
+  function applyTheme(mode){
+    if (mode === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", mode);
+    themeBtn.textContent = themeLabels[mode];
+    try { localStorage.setItem(THEME_KEY, mode); } catch(e) {}
+    if (document.querySelector('.view[data-panel="capacity"]').classList.contains("active")) renderCapacity();
+    if (three.ready){
+      three.floorMesh.material.color.set(cssVar("--surface-2"));
+      three.scene.remove(three.gridHelper);
+      disposeObject3D(three.gridHelper);
+      var newGrid = new THREE.GridHelper(threeFloorSize(), 20, new THREE.Color(cssVar("--border-strong")), new THREE.Color(cssVar("--border")));
+      newGrid.position.y = 0.002;
+      three.scene.add(newGrid);
+      three.gridHelper = newGrid;
+      refreshThreeRacks();
+    }
+  }
+  themeBtn.addEventListener("click", function(){
+    var order = ["auto","light","dark"];
+    var current = document.documentElement.getAttribute("data-theme") || "auto";
+    var next = order[(order.indexOf(current)+1) % order.length];
+    applyTheme(next);
+  });
+
+  /* ---------- reset ---------- */
+  document.getElementById("resetData").addEventListener("click", function(){
+    if (!confirm("All current data will be replaced with the sample data. Continue?")) return;
+    state = seedData();
+    saveState();
+    selectedRackId = state.racks[0] && state.racks[0].id;
+    populateFilterOptions();
+    refreshAllViews();
+  });
+
+  /* ---------- clock ---------- */
+  function tickClock(){
+    var d = new Date();
+    document.getElementById("clock").textContent = d.toLocaleTimeString('en-GB');
+  }
+
+  function refreshAllViews(){
+    renderDashboard(); renderAssets(); renderRacks(); renderFloorMap(); renderNetworkDocs();
+    if (document.querySelector('.view[data-panel="capacity"]').classList.contains("active")) renderCapacity();
+    if (three.ready) refreshThreeRacks();
+  }
+
+  /* ---------- init ---------- */
+  function init(){
+    state = loadState();
+    try {
+      var savedTheme = localStorage.getItem(THEME_KEY) || "auto";
+      applyTheme(savedTheme);
+    } catch(e) { applyTheme("auto"); }
+    populateFilterOptions();
+    selectedRackId = state.racks[0] && state.racks[0].id;
+    renderDashboard();
+    tickClock();
+    setInterval(tickClock, 1000);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
